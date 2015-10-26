@@ -2,3 +2,6 @@
 name = "example"
 version = "0.0.1"
 authors = ["Ivan Ukhov <ivan.ukhov@gmail.com>"]
+
+[dependencies]
+streamer = { git = "https://github.com/learning-on-chip/streamer.git" }
