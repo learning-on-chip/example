@@ -4,16 +4,11 @@ use term;
 pub struct Logger(LogLevel);
 
 impl Logger {
-    #[inline]
-    pub fn new(level: LogLevel) -> Logger {
-        Logger(level)
-    }
-
     #[allow(unused_must_use)]
-    pub fn activate(self) {
+    pub fn install(level: LogLevel) {
         log::set_logger(|max_log_level| {
-            max_log_level.set(self.0.to_log_level_filter());
-            Box::new(self)
+            max_log_level.set(level.to_log_level_filter());
+            Box::new(Logger(level))
         });
     }
 }

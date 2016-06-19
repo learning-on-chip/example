@@ -49,9 +49,9 @@ fn start() -> Result<()> {
         return Ok(());
     }
     if arguments.get::<bool>("verbose").unwrap_or(false) {
-        Logger::new(LogLevel::Info).activate();
+        Logger::install(LogLevel::Info);
     } else {
-        Logger::new(LogLevel::Warn).activate();
+        Logger::install(LogLevel::Warn);
     }
 
     let config = ok!(TOML::open(some!(arguments.get::<String>("config"),
