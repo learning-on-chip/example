@@ -31,7 +31,7 @@ Options:
 
 #[allow(unused_must_use)]
 fn main() {
-    start().unwrap_or_else(|error| {
+    if let Err(error) = start() {
         use std::io::Write;
         if let Some(mut output) = term::stderr() {
             output.fg(term::color::RED);
@@ -39,7 +39,7 @@ fn main() {
             output.reset();
         }
         std::process::exit(1);
-    });
+    }
 }
 
 fn start() -> Result<()> {
