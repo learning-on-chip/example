@@ -2,7 +2,11 @@
 name = "example"
 version = "0.0.1"
 dependencies = [
+ "arguments 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "configuration 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "streamer 0.0.1 (git+https://github.com/learning-on-chip/streamer.git)",
+ "term 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -148,13 +152,13 @@ name = "probability"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "random 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "random 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "special 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "random"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -205,20 +209,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "streamer"
 version = "0.0.1"
-source = "git+https://github.com/learning-on-chip/streamer.git#64704981b3062bfca323c80438bbfbbd97ce217b"
+source = "git+https://github.com/learning-on-chip/streamer.git#aeea4a9d645235f5cee7656f44ddcc1004320888"
 dependencies = [
  "arguments 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "configuration 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fractal 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "probability 0.14.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "random 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "random 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "sql 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sqlite 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "temperature 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "term 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "threed-ice 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "time 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -275,16 +278,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "superlu-sys 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "time"
-version = "0.1.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
