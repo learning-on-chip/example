@@ -1,0 +1,40 @@
+material SILICON:
+   thermal conductivity 100e-6;
+   volumetric heat capacity 1.75e-12;
+
+material HEAT_SINK:
+   thermal conductivity 400e-6;
+   volumetric heat capacity 3.55e-12;
+
+material HEAT_SPREADER:
+   thermal conductivity 400e-6;
+   volumetric heat capacity 3.55e-12;
+
+material INTERFACE_MATERIAL:
+   thermal conductivity 4.0e-6;
+   volumetric heat capacity 4.0e-12;
+
+heat sink:
+   sink height 0.0069e+6, area 0.0036e+12, material HEAT_SINK;
+   spreader height 0.001e+6, area 0.0009e+12, material HEAT_SPREADER;
+   heat transfer coefficient 1.0e-7;
+   ambient temperature 318.15;
+
+die DIE:
+   layer 0.00002e+6 INTERFACE_MATERIAL;
+   source 0.00015e+6 SILICON;
+
+dimensions:
+   chip length 0.015904e6, width 0.011844e6;
+   cell length 0.003976e6, width 0.005922e6;
+
+stack:
+   die DIE1 DIE floorplan "config/004.flp";
+
+solver:
+   steady;
+   initial temperature 318.15;
+
+output:
+   Tmap(DIE1, "tmap.txt", slot);
+   Pmap(DIE1, "pmap.txt", slot);

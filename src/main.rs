@@ -7,8 +7,8 @@ extern crate term;
 
 use configuration::format::TOML;
 use log::LogLevel;
-use streamer::{Config, Result};
-use streamer::{platform, schedule, system, traffic, workload};
+use streamer::{Result, platform, schedule, system, traffic, workload};
+use streamer::output::{self, Output};
 
 mod logger;
 
@@ -24,6 +24,8 @@ Usage: example [options]
 
 Options:
     --config <path>          Configuration file (required).
+    --length <time>          Time span to synthesize in seconds [default: 10].
+    --output <path>          Output file for power and temperature profiles.
 
     --verbose                Display progress information.
     --help                   Display this message.
@@ -54,28 +56,33 @@ fn start() -> Result<()> {
         Logger::install(LogLevel::Warn);
     }
 
-    let config = ok!(TOML::open(some!(arguments.get::<String>("config"),
-                                      "a configuration file is required")));
+    let mut system = {
+        let config = ok!(TOML::open(some!(arguments.get::<String>("config"),
+                                          "a configuration file is required")));
+        macro_rules! branch(($name:expr) => (config.branch($name).as_ref().unwrap_or(&config)));
+        let source = streamer::source(&config);
+        let traffic = try!(traffic::Fractal::new(branch!("traffic"), &source));
+        let workload = try!(workload::Random::new(branch!("workload"), &source));
+        let platform = try!(platform::Thermal::new(branch!("platform")));
+        let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform));
+        try!(System::new(traffic, workload, platform, schedule))
+    };
+    let mut output = match arguments.get::<String>("output") {
+        Some(path) => Some(try!(output::Thermal::new(system.platform(), path))),
+        _ => None,
+    };
 
-    let mut system = try!(setup(&config));
-
-    info!(target: "Example", "Simulating...");
-    while let Some((_, _)) = try!(system.next()) {
-        break;
+    let length = arguments.get::<f64>("length").unwrap_or(10.0);
+    info!(target: "Example", "Synthesizing {} seconds...", length);
+    while let Some((event, data)) = try!(system.next()) {
+        if let Some(ref mut output) = output {
+            try!(output.next(&event, &data));
+        }
+        if event.time > length {
+            break;
+        }
     }
     info!(target: "Example", "Well done.");
 
     Ok(())
-}
-
-fn setup(config: &Config) -> Result<System> {
-    macro_rules! branch(($name:expr) => (config.branch($name).as_ref().unwrap_or(config)));
-
-    let source = streamer::source(config);
-    let traffic = try!(traffic::Fractal::new(branch!("traffic"), &source));
-    let workload = try!(workload::Random::new(branch!("workload"), &source));
-    let platform = try!(platform::Thermal::new(branch!("platform")));
-    let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform));
-
-    System::new(traffic, workload, platform, schedule)
 }

@@ -1,0 +1,58 @@
+seed = 0
+
+[platform]
+time_step = 1e-2
+
+[platform.power]
+path = "reference/workload/gainestown/parsec/small/blackscholes.sqlite3"
+
+[platform.temperature]
+path = "config/004.stk"
+ambience = 318.15
+
+[traffic]
+path = "reference/traffic/cluster/google/submit.sqlite3"
+
+[workload]
+root = "reference/workload/gainestown/parsec"
+time_step = 1e-3
+patterns = [
+  { name = "blackscholes-small",  path = "small/blackscholes.sqlite3" },
+  { name = "bodytrack-small",     path = "small/bodytrack.sqlite3" },
+  { name = "canneal-small",       path = "small/canneal.sqlite3" },
+  { name = "dedup-small",         path = "small/dedup.sqlite3" },
+  { name = "facesim-small",       path = "small/facesim.sqlite3" },
+  { name = "fluidanimate-small",  path = "small/fluidanimate.sqlite3" },
+  { name = "freqmine-small",      path = "small/freqmine.sqlite3" },
+  { name = "raytrace-small",      path = "small/raytrace.sqlite3" },
+  { name = "streamcluster-small", path = "small/streamcluster.sqlite3" },
+  { name = "swaptions-small",     path = "small/swaptions.sqlite3" },
+  { name = "vips-small",          path = "small/vips.sqlite3" },
+  { name = "x264-small",          path = "small/x264.sqlite3" },
+
+  { name = "blackscholes-medium",  path = "medium/blackscholes.sqlite3" },
+  { name = "bodytrack-medium",     path = "medium/bodytrack.sqlite3" },
+  { name = "canneal-medium",       path = "medium/canneal.sqlite3" },
+  { name = "dedup-medium",         path = "medium/dedup.sqlite3" },
+  { name = "facesim-medium",       path = "medium/facesim.sqlite3" },
+  { name = "fluidanimate-medium",  path = "medium/fluidanimate.sqlite3" },
+  { name = "freqmine-medium",      path = "medium/freqmine.sqlite3" },
+  { name = "raytrace-medium",      path = "medium/raytrace.sqlite3" },
+  { name = "streamcluster-medium", path = "medium/streamcluster.sqlite3" },
+  { name = "swaptions-medium",     path = "medium/swaptions.sqlite3" },
+  { name = "vips-medium",          path = "medium/vips.sqlite3" },
+  { name = "x264-medium",          path = "medium/x264.sqlite3" },
+
+  { name = "blackscholes-large",  path = "large/blackscholes.sqlite3" },
+  { name = "bodytrack-large",     path = "large/bodytrack.sqlite3" },
+  { name = "canneal-large",       path = "large/canneal.sqlite3" },
+  { name = "dedup-large",         path = "large/dedup.sqlite3" },
+  { name = "facesim-large",       path = "large/facesim.sqlite3" },
+  { name = "fluidanimate-large",  path = "large/fluidanimate.sqlite3" },
+  { name = "freqmine-large",      path = "large/freqmine.sqlite3" },
+  { name = "raytrace-large",      path = "large/raytrace.sqlite3" },
+  { name = "streamcluster-large", path = "large/streamcluster.sqlite3" },
+  { name = "swaptions-large",     path = "large/swaptions.sqlite3" },
+  { name = "vips-large",          path = "large/vips.sqlite3" },
+  { name = "x264-large",          path = "large/x264.sqlite3" },
+]
