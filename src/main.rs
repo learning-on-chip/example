@@ -7,8 +7,9 @@ extern crate term;
 
 use configuration::format::TOML;
 use log::LogLevel;
-use streamer::{Result, platform, schedule, system, traffic, workload};
+use streamer::{Result, platform, schedule, traffic, workload};
 use streamer::output::{self, Output};
+use streamer::system::{self, Event};
 
 mod logger;
 
@@ -75,6 +76,7 @@ fn start() -> Result<()> {
     let length = arguments.get::<f64>("length").unwrap_or(10.0);
     info!(target: "Example", "Synthesizing {} seconds...", length);
     while let Some((event, data)) = try!(system.next()) {
+        display(&system, &event);
         if let Some(ref mut output) = output {
             try!(output.next(&event, &data));
         }
@@ -85,4 +87,18 @@ fn start() -> Result<()> {
     info!(target: "Example", "Well done.");
 
     Ok(())
+}
+
+fn display(system: &System, event: &Event) {
+    use streamer::system::EventKind;
+
+    let (job, kind) = match &event.kind {
+        &EventKind::Arrived(ref job) => (job, "arrived"),
+        &EventKind::Started(ref job) => (job, "started"),
+        &EventKind::Finished(ref job) => (job, "finished"),
+    };
+    info!(target: "Example",
+          "{:8.2} s | job #{:4} ( {:20} | {:2} units | {:6.2} s ) {:8} | {:2} queued",
+          event.time, job.id, job.name, job.units, job.duration(), kind,
+          system.history().arrived - system.history().started);
 }
