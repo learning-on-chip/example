@@ -7,6 +7,6 @@ all: tests/fixtures/database.sqlite3
 %.sqlite3: $(sources)
 	@rm -f $@
 	@mkdir -p `dirname $@`
-	@cargo run -- --verbose --config $(config) --length $(($(days) * 60 * 60)) --output $@
+	@cargo run -- --verbose --config $(config) --length $$(($(days) * 24 * 60 * 60)) --output $@
 
 .PHONY: all
