@@ -12,11 +12,11 @@ use log::LogLevel;
 use streamer::{Result, platform, schedule, traffic, workload};
 use streamer::system::{self, Event};
 
-mod database;
 mod logger;
+mod output;
 
-use database::Database;
 use logger::Logger;
+use output::Output;
 
 type System = system::System<traffic::Fractal,
                              workload::Random,
@@ -28,8 +28,6 @@ Usage: example [options]
 
 Options:
     --config <path>          Configuration file (required).
-    --length <time>          Time span to synthesize in seconds [default: 10].
-    --output <path>          Output file for power and temperature profiles.
 
     --verbose                Display progress information.
     --help                   Display this message.
@@ -60,10 +58,10 @@ fn start() -> Result<()> {
         Logger::install(LogLevel::Warn);
     }
 
+    let config = ok!(TOML::open(some!(arguments.get::<String>("config"),
+                                      "a configuration file is required")));
+    macro_rules! branch(($name:expr) => (config.branch($name).as_ref().unwrap_or(&config)));
     let mut system = {
-        let config = ok!(TOML::open(some!(arguments.get::<String>("config"),
-                                          "a configuration file is required")));
-        macro_rules! branch(($name:expr) => (config.branch($name).as_ref().unwrap_or(&config)));
         let source = streamer::source(&config);
         let traffic = try!(traffic::Fractal::new(branch!("traffic"), &source));
         let workload = try!(workload::Random::new(branch!("workload"), &source));
@@ -71,23 +69,15 @@ fn start() -> Result<()> {
         let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform));
         try!(System::new(traffic, workload, platform, schedule))
     };
-    let mut output = match arguments.get::<String>("output") {
-        Some(path) => Some(try!(Database::new(system.platform(), path))),
-        _ => None,
-    };
+    let mut output = try!(Output::new(system.platform(), branch!("output")));
 
-    let length = arguments.get::<f64>("length").unwrap_or(10.0);
-    info!(target: "Example", "Synthesizing {} seconds...", length);
     while let Some((event, data)) = try!(system.next()) {
-        display(&system, &event);
-        if let Some(ref mut output) = output {
-            try!(output.next(&event, &data));
-        }
-        if event.time > length {
+        if let None = try!(output.next(&event, &data)) {
             break;
+        } else {
+            display(&system, &event);
         }
     }
-    info!(target: "Example", "Well done.");
 
     Ok(())
 }

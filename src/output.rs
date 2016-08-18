@@ -1,75 +1,91 @@
 use sqlite::{Connection, Statement, State};
 use std::mem;
-use std::path::Path;
 
-use streamer::Result;
+use streamer::{Config, Result};
 use streamer::platform::{self, Platform, Profile};
 use streamer::system::{Event, EventKind, Job};
 
-pub struct Database {
+pub struct Output {
     #[allow(dead_code)]
     connection: Connection,
     arrivals: Statement<'static>,
     profiles: Statement<'static>,
+    length: f64,
 }
 
-impl Database {
-    pub fn new<T>(platform: &platform::Thermal, path: T) -> Result<Self> where T: AsRef<Path> {
+impl Output {
+    pub fn new(platform: &platform::Thermal, config: &Config) -> Result<Self> {
         use sql::prelude::*;
 
-        let connection = ok!(Connection::open(path));
+        let length = match config.get::<f64>("length") {
+            Some(length) => *length,
+            _ => raise!("an output length is required"),
+        };
+
+        let connection = match config.get::<String>("path") {
+            Some(path) => ok!(Connection::open(path)),
+            _ => raise!("an output file is required"),
+        };
 
         ok!(connection.execute("
             PRAGMA journal_mode = MEMORY;
             PRAGMA synchronous = OFF;
         "));
 
-        ok!(connection.execute({
+        ok!(connection.execute(
             ok!(create_table("arrivals").if_not_exists().columns(&[
                 "time".float().not_null(),
             ]).compile())
-        }));
-        ok!(connection.execute({
+        ));
+        ok!(connection.execute(
             ok!(create_table("profiles").if_not_exists().columns(&[
                 "time".float().not_null(), "component_id".integer().not_null(),
                 "power".float().not_null(), "temperature".float().not_null(),
             ]).compile())
-        }));
+        ));
 
         ok!(connection.execute(ok!(delete_from("arrivals").compile())));
         ok!(connection.execute(ok!(delete_from("profiles").compile())));
 
         let arrivals = {
-            let statement = ok!(connection.prepare({
+            let statement = ok!(connection.prepare(
                 ok!(insert_into("arrivals").columns(&[
                     "time",
                 ]).compile())
-            }));
+            ));
             unsafe { mem::transmute(statement) }
         };
+        let units = platform.elements().len();
         let profiles = {
-            let units = platform.elements().len();
-            let statement = ok!(connection.prepare({
+            let statement = ok!(connection.prepare(
                 ok!(insert_into("profiles").columns(&[
                     "time", "component_id", "power", "temperature",
                 ]).batch(units).compile())
-            }));
+            ));
             unsafe { mem::transmute(statement) }
         };
 
-        Ok(Database { connection: connection, arrivals: arrivals, profiles: profiles })
+        Ok(Output {
+            connection: connection,
+            arrivals: arrivals,
+            profiles: profiles,
+            length: length,
+        })
     }
 
     pub fn next(&mut self, event: &Event, &(ref power, ref temperature): &(Profile, Profile))
-                -> Result<()> {
+                -> Result<Option<()>> {
 
+        if event.time > self.length {
+            return Ok(None);
+        }
         ok!(self.connection.execute("BEGIN TRANSACTION"));
         if let &EventKind::Arrived(ref job) = &event.kind {
             ok!(self.write_arrival(job));
         }
         ok!(self.write_profile(power, temperature));
         ok!(self.connection.execute("END TRANSACTION"));
-        Ok(())
+        Ok(Some(()))
     }
 
     fn write_arrival(&mut self, job: &Job) -> Result<()> {

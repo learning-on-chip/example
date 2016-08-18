@@ -1,12 +1,9 @@
-days := 1
 config := config/parsec.toml
 sources := $(shell find src -name '*.rs')
 
-all: tests/fixtures/database.sqlite3
-
-%.sqlite3: $(sources)
+tests/fixtures/database.sqlite3: $(config) $(sources)
 	@rm -f $@
 	@mkdir -p `dirname $@`
-	@cargo run -- --verbose --config $(config) --length $$(($(days) * 24 * 60 * 60)) --output $@
+	@cargo run -- --verbose --config $<
 
 .PHONY: all
