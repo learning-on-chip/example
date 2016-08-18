@@ -7,5 +7,7 @@ authors = ["Ivan Ukhov <ivan.ukhov@gmail.com>"]
 arguments = "*"
 configuration = "*"
 log = "*"
+sql = "*"
+sqlite = "*"
 streamer = { git = "https://github.com/learning-on-chip/streamer.git" }
 term = "*"

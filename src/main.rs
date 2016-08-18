@@ -1,5 +1,7 @@
 extern crate arguments;
 extern crate configuration;
+extern crate sql;
+extern crate sqlite;
 extern crate term;
 
 #[macro_use] extern crate log;
@@ -8,11 +10,12 @@ extern crate term;
 use configuration::format::TOML;
 use log::LogLevel;
 use streamer::{Result, platform, schedule, traffic, workload};
-use streamer::output::{self, Output};
 use streamer::system::{self, Event};
 
+mod database;
 mod logger;
 
+use database::Database;
 use logger::Logger;
 
 type System = system::System<traffic::Fractal,
@@ -69,7 +72,7 @@ fn start() -> Result<()> {
         try!(System::new(traffic, workload, platform, schedule))
     };
     let mut output = match arguments.get::<String>("output") {
-        Some(path) => Some(try!(output::Thermal::new(system.platform(), path))),
+        Some(path) => Some(try!(Database::new(system.platform(), path))),
         _ => None,
     };
 
