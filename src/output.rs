@@ -10,28 +10,18 @@ pub struct Output {
     connection: Connection,
     arrivals: Statement<'static>,
     profiles: Statement<'static>,
-    length: f64,
 }
 
 impl Output {
     pub fn new(platform: &platform::Thermal, config: &Config) -> Result<Self> {
         use sql::prelude::*;
 
-        let length = match config.get::<f64>("length") {
-            Some(length) => *length,
-            _ => raise!("an output length is required"),
-        };
-
-        let connection = match config.get::<String>("path") {
-            Some(path) => ok!(Connection::open(path)),
-            _ => raise!("an output file is required"),
-        };
-
+        let connection = ok!(Connection::open(path!(@unchecked config,
+                                                    "an output file is required")));
         ok!(connection.execute("
             PRAGMA journal_mode = MEMORY;
             PRAGMA synchronous = OFF;
         "));
-
         ok!(connection.execute(
             ok!(create_table("arrivals").if_not_exists().columns(&[
                 "time".float().not_null(),
@@ -43,15 +33,11 @@ impl Output {
                 "power".float().not_null(), "temperature".float().not_null(),
             ]).compile())
         ));
-
         ok!(connection.execute(ok!(delete_from("arrivals").compile())));
         ok!(connection.execute(ok!(delete_from("profiles").compile())));
-
         let arrivals = {
             let statement = ok!(connection.prepare(
-                ok!(insert_into("arrivals").columns(&[
-                    "time",
-                ]).compile())
+                ok!(insert_into("arrivals").columns(&["time"]).compile())
             ));
             unsafe { mem::transmute(statement) }
         };
@@ -64,28 +50,19 @@ impl Output {
             ));
             unsafe { mem::transmute(statement) }
         };
-
-        Ok(Output {
-            connection: connection,
-            arrivals: arrivals,
-            profiles: profiles,
-            length: length,
-        })
+        Ok(Output { connection: connection, arrivals: arrivals, profiles: profiles })
     }
 
     pub fn next(&mut self, event: &Event, &(ref power, ref temperature): &(Profile, Profile))
-                -> Result<Option<()>> {
+                -> Result<()> {
 
-        if event.time > self.length {
-            return Ok(None);
-        }
         ok!(self.connection.execute("BEGIN TRANSACTION"));
         if let &EventKind::Arrived(ref job) = &event.kind {
             ok!(self.write_arrival(job));
         }
         ok!(self.write_profile(power, temperature));
         ok!(self.connection.execute("END TRANSACTION"));
-        Ok(Some(()))
+        Ok(())
     }
 
     fn write_arrival(&mut self, job: &Job) -> Result<()> {

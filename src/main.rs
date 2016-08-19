@@ -69,15 +69,18 @@ fn start() -> Result<()> {
         let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform));
         try!(System::new(traffic, workload, platform, schedule))
     };
+    let length = *branch!("output").get::<f64>("length").unwrap_or(&10.0);
     let mut output = try!(Output::new(system.platform(), branch!("output")));
 
+    info!(target: "Example", "Synthesizing {} seconds...", length);
     while let Some((event, data)) = try!(system.next()) {
-        if let None = try!(output.next(&event, &data)) {
+        if event.time > length {
             break;
-        } else {
-            display(&system, &event);
         }
+        display(&system, &event);
+        try!(output.next(&event, &data));
     }
+    info!(target: "Example", "Well done.");
 
     Ok(())
 }
