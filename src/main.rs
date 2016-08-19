@@ -69,7 +69,7 @@ fn start() -> Result<()> {
         let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform));
         try!(System::new(traffic, workload, platform, schedule))
     };
-    let time_span = *some!(branch!("output").get::<f64>("time_span"), "a time span is required");
+    let time_span = *some!(config.get::<f64>("output.time_span"), "a time span is required");
     let mut output = try!(Output::new(system.platform(), branch!("output")));
 
     info!(target: "Example", "Synthesizing {} seconds...", time_span);
