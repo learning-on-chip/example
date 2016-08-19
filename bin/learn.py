@@ -9,14 +9,15 @@ import support
 import tensorflow as tf
 
 def learn(f, dimension_count, sample_count, train_each, predict_each,
-          predict_count, epoch_count, monitor):
-
-    assert(predict_each % train_each == 0)
+          predict_phases, predict_count, epoch_count, train_monitor,
+          predict_monitor):
 
     n = sample_count // predict_each
     while n > 0 and n*predict_each + predict_count > sample_count: n -= 1
     sample_count = n*predict_each + predict_count
     if n == 0: return
+
+    predict_phases = np.cumsum(predict_phases)
 
     layer_count = 1
     unit_count = 20
@@ -67,20 +68,24 @@ def learn(f, dimension_count, sample_count, train_each, predict_each,
             if j % train_each == 0:
                 train_results = session.run(train_fetches, train_feeds)
                 train_feeds[start] = train_results['finish']
+                train_monitor(progress=(k, j // train_each, j),
+                              loss=train_results['loss'].flatten())
 
-            if j % predict_each != 0: continue
-
-            predict_feeds[start] = train_feeds[start]
-            predict_feeds[x] = np.reshape(train_feeds[y][0, -1, :], [1, 1, -1])
-            for l in range(predict_count):
-                predict_results = session.run(predict_fetches, predict_feeds)
-                predict_feeds[start] = predict_results['finish']
-                Y_hat[l, :] = predict_results['y_hat'][0, :]
-                predict_feeds[x][0, 0, :] = Y_hat[l, :]
-                Y[l, :] = f(j + l + 1)
-
-            monitor(Y, Y_hat, progress=(k, j // train_each, j),
-                    loss=train_results['loss'].flatten())
+            phase = np.nonzero(predict_phases >= (i % predict_phases[-1]))[0][0]
+            if phase % 2 == 1 and j % predict_each == 0:
+                lag = j % train_each
+                predict_feeds[start] = train_feeds[start]
+                predict_feeds[x] = np.reshape(
+                    train_feeds[y][0, (train_each - 1 - lag):, :],
+                    [1, 1 + lag, -1])
+                for l in range(predict_count):
+                    predict_results = session.run(predict_fetches,
+                                                  predict_feeds)
+                    predict_feeds[start] = predict_results['finish']
+                    Y_hat[l, :] = predict_results['y_hat'][-1, :]
+                    predict_feeds[x] = np.reshape(Y_hat[l, :], [1, 1, -1])
+                    Y[l, :] = f(j + l + 1)
+                predict_monitor(Y, Y_hat)
 
 def configure(dimension_count, layer_count, unit_count):
     def compute(x, y):
@@ -133,10 +138,12 @@ support.figure()
 y_limit = [-1, 1]
 pp.pause(1e-3)
 
-def monitor(y, y_hat, progress, loss):
+def train_monitor(progress, loss):
     sys.stdout.write('%4d %8d %10d' % progress)
     [sys.stdout.write(' %12.4e' % l) for l in loss]
     sys.stdout.write('\n')
+
+def predict_monitor(y, y_hat):
     pp.clf()
     dimension_count = y.shape[1]
     y_limit[0] = min(y_limit[0], np.min(y), np.min(y_hat))
@@ -154,10 +161,12 @@ data = support.normalize(support.select(component_ids=[0]))
 learn(lambda i: data[i, :],
       dimension_count=data.shape[1],
       sample_count=data.shape[0],
-      train_each=20,
-      predict_each=20,
-      predict_count=20,
+      train_each=50,
+      predict_each=5,
+      predict_phases=[10000, 1000],
+      predict_count=100,
       epoch_count=100,
-      monitor=monitor)
+      train_monitor=train_monitor,
+      predict_monitor=predict_monitor)
 
 pp.show()
