@@ -3,13 +3,13 @@ use std::mem;
 
 use streamer::{Config, Result};
 use streamer::platform::{self, Platform, Profile};
-use streamer::system::{Event, EventKind, Job};
+use streamer::system::Event;
 
 pub struct Output {
     #[allow(dead_code)]
     connection: Connection,
-    arrivals: Statement<'static>,
-    profiles: Statement<'static>,
+    statement: Statement<'static>,
+    buffer: (usize, usize, Vec<f64>, Vec<f64>),
 }
 
 impl Output {
@@ -23,26 +23,14 @@ impl Output {
             PRAGMA synchronous = OFF;
         "));
         ok!(connection.execute(
-            ok!(create_table("arrivals").if_not_exists().columns(&[
-                "time".float().not_null(),
-            ]).compile())
-        ));
-        ok!(connection.execute(
             ok!(create_table("profiles").if_not_exists().columns(&[
                 "time".float().not_null(), "component_id".integer().not_null(),
                 "power".float().not_null(), "temperature".float().not_null(),
             ]).compile())
         ));
-        ok!(connection.execute(ok!(delete_from("arrivals").compile())));
         ok!(connection.execute(ok!(delete_from("profiles").compile())));
-        let arrivals = {
-            let statement = ok!(connection.prepare(
-                ok!(insert_into("arrivals").columns(&["time"]).compile())
-            ));
-            unsafe { mem::transmute(statement) }
-        };
         let units = platform.elements().len();
-        let profiles = {
+        let statement = {
             let statement = ok!(connection.prepare(
                 ok!(insert_into("profiles").columns(&[
                     "time", "component_id", "power", "temperature",
@@ -50,44 +38,50 @@ impl Output {
             ));
             unsafe { mem::transmute(statement) }
         };
-        Ok(Output { connection: connection, arrivals: arrivals, profiles: profiles })
+        let subsample = *config.get::<i64>("subsample").unwrap_or(&1);
+        if subsample <= 0 {
+            raise!("the subsample size should be greater than zero");
+        }
+        Ok(Output {
+            connection: connection,
+            statement: statement,
+            buffer: (subsample as usize, 0, vec![0.0; units], vec![0.0; units]),
+        })
     }
 
-    pub fn next(&mut self, event: &Event, &(ref power, ref temperature): &(Profile, Profile))
-                -> Result<()> {
-
+    pub fn next(&mut self, _: &Event, profiles: &(Profile, Profile)) -> Result<()> {
         ok!(self.connection.execute("BEGIN TRANSACTION"));
-        if let &EventKind::Arrived(ref job) = &event.kind {
-            ok!(self.write_arrival(job));
-        }
-        ok!(self.write_profile(power, temperature));
+        ok!(self.write_profiles(profiles));
         ok!(self.connection.execute("END TRANSACTION"));
         Ok(())
     }
 
-    fn write_arrival(&mut self, job: &Job) -> Result<()> {
-        let statement = &mut self.arrivals;
-        ok!(statement.reset());
-        ok!(statement.bind(1, job.arrival));
-        if State::Done != ok!(statement.next()) {
-            raise!("failed to write into the database");
-        }
-        Ok(())
-    }
-
-    fn write_profile(&mut self, power: &Profile, temperature: &Profile) -> Result<()> {
-        let &Profile { units, steps, time, time_step, data: ref power } = power;
-        let &Profile { data: ref temperature, .. } = temperature;
-        let statement = &mut self.profiles;
+    fn write_profiles(&mut self, profiles: &(Profile, Profile)) -> Result<()> {
+        let &Profile { units, steps, time, time_step, data: ref new_power } = &profiles.0;
+        let &Profile { data: ref new_temperature, .. } = &profiles.1;
+        let &mut Output { ref mut statement, ref mut buffer, .. } = self;
+        let &mut (subsample, ref mut position, ref mut power, ref mut temperature) = buffer;
         for i in 0..steps {
+            for j in 0..units {
+                power[j] += new_power[i * units + j];
+                temperature[j] += new_temperature[i * units + j];
+            }
+            *position = (*position + 1) % subsample;
+            if *position > 0 {
+                continue;
+            }
             let time = time + (i as f64) * time_step;
             ok!(statement.reset());
             let mut k = 0;
             for j in 0..units {
+                power[j] /= subsample as f64;
+                temperature[j] /= subsample as f64;
                 ok!(statement.bind(k + 1, time));
                 ok!(statement.bind(k + 2, j as i64));
-                ok!(statement.bind(k + 3, power[i * units + j]));
-                ok!(statement.bind(k + 4, temperature[i * units + j]));
+                ok!(statement.bind(k + 3, power[j]));
+                ok!(statement.bind(k + 4, temperature[j]));
+                power[j] = 0.0;
+                temperature[j] = 0.0;
                 k += 4;
             }
             if State::Done != ok!(statement.next()) {
