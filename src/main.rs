@@ -69,12 +69,12 @@ fn start() -> Result<()> {
         let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform));
         try!(System::new(traffic, workload, platform, schedule))
     };
-    let length = *branch!("output").get::<f64>("length").unwrap_or(&10.0);
+    let time_span = *some!(branch!("output").get::<f64>("time_span"), "a time span is required");
     let mut output = try!(Output::new(system.platform(), branch!("output")));
 
-    info!(target: "Example", "Synthesizing {} seconds...", length);
+    info!(target: "Example", "Synthesizing {} seconds...", time_span);
     while let Some((event, data)) = try!(system.next()) {
-        if event.time > length {
+        if event.time > time_span {
             break;
         }
         display(&system, &event);

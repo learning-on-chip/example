@@ -3,7 +3,7 @@ time_step = 1e-3
 
 [output]
 path = "tests/fixtures/database.sqlite3"
-length = 86400.0
+time_span = 86400.0
 
 [platform.power]
 path = "reference/workload/gainestown/parsec/small/blackscholes.sqlite3"
