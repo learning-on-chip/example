@@ -9,7 +9,7 @@ import support
 import tensorflow as tf
 
 def learn(f, dimension_count, sample_count, train_each, predict_each,
-          predict_phases, predict_count, epoch_count, train_monitor,
+          predict_count, predict_phases, epoch_count, train_monitor,
           predict_monitor):
 
     n = sample_count // predict_each
@@ -163,8 +163,8 @@ learn(lambda i: data[i, :],
       sample_count=data.shape[0],
       train_each=50,
       predict_each=5,
-      predict_phases=[10000, 1000],
       predict_count=100,
+      predict_phases=[10000, 1000],
       epoch_count=100,
       train_monitor=train_monitor,
       predict_monitor=predict_monitor)
