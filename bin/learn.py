@@ -5,7 +5,8 @@ sys.path.append(os.path.dirname(__file__))
 
 import matplotlib.pyplot as pp
 import numpy as np
-import subprocess, support, tempfile
+import queue, subprocess, threading
+import support as sp
 import tensorflow as tf
 
 def learn(f, dimension_count, sample_count, epoch_count, train_each,
@@ -133,40 +134,57 @@ def configure(dimension_count, layer_count, unit_count):
 
     return compute
 
-filename = os.path.join(tempfile.gettempdir(), 'learn.pdf')
-open(filename, 'w').close()
-print('Monitor: {}'.format(filename))
-subprocess.call(['open', filename])
-support.figure()
-y_limit = [-1, 1]
-
 def train_monitor(progress, loss):
     sys.stdout.write('%4d %8d %10d' % progress)
     [sys.stdout.write(' %12.4e' % l) for l in loss]
     sys.stdout.write('\n')
 
-def predict_monitor(y, y_hat):
-    pp.clf()
-    dimension_count = y.shape[1]
-    y_limit[0] = min(y_limit[0], np.min(y), np.min(y_hat))
-    y_limit[1] = max(y_limit[1], np.max(y), np.max(y_hat))
-    for i in range(dimension_count):
-        pp.subplot(dimension_count, 1, i + 1)
-        pp.plot(y[:, i])
-        pp.plot(y_hat[:, i])
-        pp.xlim([0, y.shape[0] - 1])
-        pp.ylim(y_limit)
-        pp.legend(['Observed', 'Predicted'])
-    pp.savefig(filename)
+def predict_monitor(channel):
+    process = subprocess.Popen((__file__, 'monitor'), stdin=subprocess.PIPE)
+    while True:
+        y, y_hat = channel.get()
+        row = np.concatenate((y.flatten(), y_hat.flatten()))
+        line = ','.join(['%.16e' % value for value in row]) + '\n'
+        process.stdin.write(line.encode())
 
-data = support.normalize(support.select(component_ids=[0]))
-learn(lambda i: data[i, :],
-      dimension_count=data.shape[1],
-      sample_count=data.shape[0],
-      epoch_count=100,
-      train_each=50,
-      train_monitor=train_monitor,
-      predict_each=10,
-      predict_count=100,
-      predict_pace=[863890 // 10 - 1000, 1000],
-      predict_monitor=predict_monitor)
+component_ids=[0]
+dimension_count = len(component_ids)
+
+def main():
+    channel = queue.Queue()
+    threading.Thread(target=predict_monitor, args=(channel,)).start()
+    data = sp.normalize(sp.select(component_ids=component_ids))
+    learn(lambda i: data[i, :],
+          dimension_count=dimension_count,
+          sample_count=data.shape[0],
+          epoch_count=100,
+          train_each=50,
+          train_monitor=train_monitor,
+          predict_each=5,
+          predict_count=100,
+          predict_pace=[10000 - 1000, 1000],
+          predict_monitor=lambda *data: channel.put(data))
+
+def main_monitor():
+    sp.figure()
+    pp.pause(1e-3)
+    y_limit = [-1, 1]
+    while True:
+        row = [float(number) for number in sys.stdin.readline().split(',')]
+        half = len(row) // 2
+        y = np.reshape(np.array(row[0:half]), [-1, dimension_count])
+        y_hat = np.reshape(np.array(row[half:]), [-1, dimension_count])
+        y_limit[0] = min(y_limit[0], np.min(y), np.min(y_hat))
+        y_limit[1] = max(y_limit[1], np.max(y), np.max(y_hat))
+        pp.clf()
+        for i in range(dimension_count):
+            pp.subplot(dimension_count, 1, i + 1)
+            pp.plot(y[:, i])
+            pp.plot(y_hat[:, i])
+            pp.xlim([0, y.shape[0] - 1])
+            pp.ylim(y_limit)
+            pp.legend(['Observed', 'Predicted'])
+        pp.pause(1e-3)
+
+if __name__ == '__main__':
+    exec('{}()'.format('_'.join(['main', *sys.argv[1:]])))
