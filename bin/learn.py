@@ -9,86 +9,131 @@ import queue, subprocess, threading
 import support as sp
 import tensorflow as tf
 
-def learn(f, dimension_count, sample_count, epoch_count, train_each,
-          train_monitor, predict_each, predict_count, predict_pace,
-          predict_monitor):
+class Config:
+    def __init__(self, options={}):
+        self.layer_count = 1
+        self.unit_count = 20
+        self.learning_rate = 1e-2
+        self.gradient_norm = 1
+        for key in options:
+            setattr(self, key, options[key])
 
-    epoch_sample_count = sample_count - predict_count
-    epoch_sample_count -= epoch_sample_count % predict_each
-    predict_phases = np.cumsum(predict_pace)
+class Learn:
+    def __init__(self, config):
+        graph = tf.Graph()
+        with graph.as_default():
+            model = Model(config)
+            with tf.variable_scope('optimization'):
+                parameters = tf.trainable_variables()
+                gradient = tf.gradients(model.loss, parameters)
+                gradient, _ = tf.clip_by_global_norm(gradient,
+                                                     config.gradient_norm)
+                optimizer = tf.train.AdamOptimizer(config.learning_rate)
+                train = optimizer.apply_gradients(zip(gradient, parameters))
+            initialize = tf.initialize_variables(tf.all_variables(),
+                                                 name='initialize')
+        self.graph = graph
+        self.model = model
+        self.parameters = parameters
+        self.train = train
+        self.initialize = initialize
 
-    layer_count = 1
-    unit_count = 20
-    learning_rate = 1e-2
-    gradient_norm = 1
+    def count_parameters(self):
+        return np.sum([int(np.prod(p.get_shape())) for p in self.parameters])
 
-    model = configure(dimension_count, layer_count, unit_count)
-    graph = tf.get_default_graph()
-    tf.train.SummaryWriter('log', graph)
+    def run(self, target, config):
+        sample_count = config.sample_count
+        epoch_count = config.epoch_count
+        predict_each = config.predict_each
+        predict_count = config.predict_count
+        predict_phases = config.predict_phases
 
-    x = tf.placeholder(tf.float32, [1, None, dimension_count], name='x')
-    y = tf.placeholder(tf.float32, [1, None, dimension_count], name='y')
-    (y_hat, loss), (start, finish) = model(x, y)
+        sample_count -= predict_count
+        sample_count -= sample_count % predict_each
+        predict_phases = np.cumsum(predict_phases)
+        config.sample_count = sample_count
+        config.predict_phases = predict_phases
 
-    with tf.variable_scope('optimization'):
-        parameters = tf.trainable_variables()
-        gradient = tf.gradients(loss, parameters)
-        gradient, _ = tf.clip_by_global_norm(gradient, gradient_norm)
-        optimizer = tf.train.AdamOptimizer(learning_rate)
-        train = optimizer.apply_gradients(zip(gradient, parameters))
+        print('Parameters: %d' % self.count_parameters())
+        print('Epoch samples: %d' % sample_count)
 
-    initialize = tf.initialize_variables(tf.all_variables(), name='initialize')
+        tf.train.SummaryWriter('log', graph=self.graph)
+        session = tf.Session(graph=self.graph)
+        session.run(self.initialize)
+        for epoch in range(epoch_count):
+            self._run_epoch(target, config, session, epoch)
 
-    session = tf.Session(graph=graph)
-    session.run(initialize)
+    def _run_epoch(self, target, config, session, epoch):
+        dimension_count = config.dimension_count
+        sample_count = config.sample_count
+        train_each = config.train_each
+        predict_each = config.predict_each
+        predict_count = config.predict_count
+        predict_phases = config.predict_phases
+        monitor = config.monitor
 
-    parameter_count = np.sum([int(np.prod(p.get_shape())) for p in parameters])
-    print('Parameters: %d' % parameter_count)
-    print('Epoch samples: %d' % epoch_sample_count)
-    for e in range(epoch_count):
-        train_fetches = {'finish': finish, 'train': train, 'loss': loss}
-        train_feeds = {
-            start: np.zeros(start.get_shape(), dtype=np.float32),
-            x: np.zeros([1, train_each, dimension_count], dtype=np.float32),
-            y: np.zeros([1, train_each, dimension_count], dtype=np.float32),
+        model = self.model
+
+        train_fetches = {
+            'finish': model.finish,
+            'train': self.train,
+            'loss': model.loss,
         }
-        predict_fetches = {'finish': finish, 'y_hat': y_hat}
-        predict_feeds = {start: None, x: None}
+        train_feeds = {
+            model.start: np.zeros(model.start.get_shape(), np.float32),
+            model.x: np.zeros([1, train_each, dimension_count], np.float32),
+            model.y: np.zeros([1, train_each, dimension_count], np.float32),
+        }
+        predict_fetches = {
+            'finish': model.finish,
+            'y_hat': model.y_hat,
+        }
+        predict_feeds = {
+            model.start: None,
+            model.x: None,
+        }
 
-        Y = np.zeros([predict_count, dimension_count])
-        Y_hat = np.zeros([predict_count, dimension_count])
-        for s, t in zip(range(epoch_sample_count - 1),
-                        range(1, epoch_sample_count)):
-
-            train_feeds[x] = np.roll(train_feeds[x], -1, axis=1)
-            train_feeds[y] = np.roll(train_feeds[y], -1, axis=1)
-            train_feeds[x][0, -1, :] = f(s)
-            train_feeds[y][0, -1, :] = f(t)
+        y = np.zeros([predict_count, dimension_count])
+        y_hat = np.zeros([predict_count, dimension_count])
+        for s, t in zip(range(sample_count - 1), range(1, sample_count)):
+            train_feeds[model.x] = np.roll(train_feeds[model.x], -1, axis=1)
+            train_feeds[model.y] = np.roll(train_feeds[model.y], -1, axis=1)
+            train_feeds[model.x][0, -1, :] = target(s)
+            train_feeds[model.y][0, -1, :] = target(t)
 
             if t % train_each == 0:
                 train_results = session.run(train_fetches, train_feeds)
-                train_feeds[start] = train_results['finish']
-                train_monitor(progress=(e, t // train_each, t),
+                train_feeds[model.start] = train_results['finish']
+                monitor.train(progress=(epoch, t // train_each, t),
                               loss=train_results['loss'].flatten())
 
-            phase = np.nonzero(predict_phases >= (s % predict_phases[-1]))[0][0]
+            phase = predict_phases >= (s % predict_phases[-1])
+            phase = np.nonzero(phase)[0][0]
             if phase % 2 == 1 and t % predict_each == 0:
                 lag = t % train_each
-                predict_feeds[start] = train_feeds[start]
-                predict_feeds[x] = np.reshape(
-                    train_feeds[y][0, (train_each - 1 - lag):, :],
+                predict_feeds[model.start] = train_feeds[model.start]
+                predict_feeds[model.x] = np.reshape(
+                    train_feeds[model.y][0, (train_each - 1 - lag):, :],
                     [1, 1 + lag, -1])
                 for i in range(predict_count):
                     predict_results = session.run(predict_fetches,
                                                   predict_feeds)
-                    predict_feeds[start] = predict_results['finish']
-                    Y_hat[i, :] = predict_results['y_hat'][-1, :]
-                    predict_feeds[x] = np.reshape(Y_hat[i, :], [1, 1, -1])
-                    Y[i, :] = f(t + i + 1)
-                predict_monitor(Y, Y_hat)
+                    predict_feeds[model.start] = predict_results['finish']
+                    y_hat[i, :] = predict_results['y_hat'][-1, :]
+                    predict_feeds[model.x] = np.reshape(y_hat[i, :],
+                                                        [1, 1, -1])
+                    y[i, :] = target(t + i + 1)
+                monitor.predict(y, y_hat)
 
-def configure(dimension_count, layer_count, unit_count):
-    def compute(x, y):
+class Model:
+    def __init__(self, config):
+        dimension_count = config.dimension_count
+        layer_count = config.layer_count
+        unit_count = config.unit_count
+
+        x = tf.placeholder(tf.float32, [1, None, dimension_count], name='x')
+        y = tf.placeholder(tf.float32, [1, None, dimension_count], name='y')
+
         with tf.variable_scope('network') as scope:
             initializer = tf.random_uniform_initializer(-0.1, 0.1)
             cell = tf.nn.rnn_cell.LSTMCell(unit_count, initializer=initializer,
@@ -96,20 +141,28 @@ def configure(dimension_count, layer_count, unit_count):
                                            state_is_tuple=True)
             cell = tf.nn.rnn_cell.MultiRNNCell([cell] * layer_count,
                                                state_is_tuple=True)
-            start, state = initialize()
+            start, state = Model._initialize(layer_count, unit_count)
             h, state = tf.nn.dynamic_rnn(cell, x, initial_state=state,
                                          parallel_iterations=1)
-            finish = finalize(state)
-        return regress(h, y), (start, finish)
+            finish = Model._finalize(state, layer_count)
 
-    def finalize(state):
+        y_hat, loss = Model._regress(h, y, dimension_count, unit_count)
+
+        self.x = x
+        self.y = y
+        self.y_hat = y_hat
+        self.loss = loss
+        self.start = start
+        self.finish = finish
+
+    def _finalize(state, layer_count):
         parts = []
         for i in range(layer_count):
             parts.append(state[i].c)
             parts.append(state[i].h)
         return tf.pack(parts, name='finish')
 
-    def initialize():
+    def _initialize(layer_count, unit_count):
         start = tf.placeholder(tf.float32, [2 * layer_count, 1, unit_count],
                                name='start')
         parts = tf.unpack(start)
@@ -119,7 +172,7 @@ def configure(dimension_count, layer_count, unit_count):
             state.append(tf.nn.rnn_cell.LSTMStateTuple(c, h))
         return start, state
 
-    def regress(x, y):
+    def _regress(x, y, dimension_count, unit_count):
         with tf.variable_scope('regression') as scope:
             unroll_count = tf.shape(x)[1]
             x = tf.squeeze(x, squeeze_dims=[0])
@@ -132,38 +185,44 @@ def configure(dimension_count, layer_count, unit_count):
             loss = tf.reduce_mean(tf.squared_difference(y_hat, y))
         return y_hat, loss
 
-    return compute
+class Monitor:
+    def __init__(self):
+        self.channel = queue.Queue()
+        threading.Thread(target=self._predict_worker).start()
 
-def train_monitor(progress, loss):
-    sys.stdout.write('%4d %8d %10d' % progress)
-    [sys.stdout.write(' %12.4e' % l) for l in loss]
-    sys.stdout.write('\n')
+    def train(self, progress, loss):
+        sys.stdout.write('%4d %8d %10d' % progress)
+        [sys.stdout.write(' %12.4e' % l) for l in loss]
+        sys.stdout.write('\n')
 
-def predict_monitor(channel):
-    process = subprocess.Popen((__file__, 'monitor'), stdin=subprocess.PIPE)
-    while True:
-        y, y_hat = channel.get()
-        row = np.concatenate((y.flatten(), y_hat.flatten()))
-        line = ','.join(['%.16e' % value for value in row]) + '\n'
-        process.stdin.write(line.encode())
+    def predict(self, y, y_hat):
+        self.channel.put((y, y_hat))
+
+    def _predict_worker(self):
+        process = subprocess.Popen((__file__, 'monitor'), stdin=subprocess.PIPE)
+        while True:
+            y, y_hat = self.channel.get()
+            row = np.concatenate((y.flatten(), y_hat.flatten()))
+            line = ','.join(['%.16e' % value for value in row]) + '\n'
+            process.stdin.write(line.encode())
 
 component_ids=[0]
 dimension_count = len(component_ids)
 
 def main():
-    channel = queue.Queue()
-    threading.Thread(target=predict_monitor, args=(channel,)).start()
     data = sp.normalize(sp.select(component_ids=component_ids))
-    learn(lambda i: data[i, :],
-          dimension_count=dimension_count,
-          sample_count=data.shape[0],
-          epoch_count=100,
-          train_each=50,
-          train_monitor=train_monitor,
-          predict_each=5,
-          predict_count=100,
-          predict_pace=[10000 - 1000, 1000],
-          predict_monitor=lambda *data: channel.put(data))
+    config = Config({
+        'dimension_count': dimension_count,
+        'sample_count': data.shape[0],
+        'epoch_count': 100,
+        'train_each': 50,
+        'predict_each': 5,
+        'predict_count': 100,
+        'predict_phases': [10000 - 1000, 1000],
+        'monitor': Monitor(),
+    })
+    learn = Learn(config)
+    learn.run(lambda i: data[i, :], config)
 
 def main_monitor():
     sp.figure()
