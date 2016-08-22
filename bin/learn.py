@@ -30,12 +30,19 @@ class Learn:
                                                      config.gradient_norm)
                 optimizer = tf.train.AdamOptimizer(config.learning_rate)
                 train = optimizer.apply_gradients(zip(gradient, parameters))
+            with tf.variable_scope('summary'):
+                tf.scalar_summary('loss', tf.reduce_sum(model.loss))
+            logger = tf.train.SummaryWriter('log', graph)
+            summary = tf.merge_all_summaries()
             initialize = tf.initialize_variables(tf.all_variables(),
                                                  name='initialize')
+
         self.graph = graph
         self.model = model
         self.parameters = parameters
         self.train = train
+        self.logger = logger
+        self.summary = summary
         self.initialize = initialize
 
     def count_parameters(self):
@@ -57,7 +64,6 @@ class Learn:
         print('Parameters: %d' % self.count_parameters())
         print('Epoch samples: %d' % sample_count)
 
-        tf.train.SummaryWriter('log', graph=self.graph)
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
         for epoch in range(epoch_count):
@@ -78,6 +84,7 @@ class Learn:
             'finish': model.finish,
             'train': self.train,
             'loss': model.loss,
+            'summary': self.summary,
         }
         train_feeds = {
             model.start: np.zeros(model.start.get_shape(), np.float32),
@@ -102,10 +109,14 @@ class Learn:
             train_feeds[model.y][0, -1, :] = target(t)
 
             if t % train_each == 0:
+                total_sample_count = epoch*sample_count + t
+                total_train_count = total_sample_count // train_each
                 train_results = session.run(train_fetches, train_feeds)
                 train_feeds[model.start] = train_results['finish']
-                monitor.train(progress=(epoch, t // train_each, t),
-                              loss=train_results['loss'].flatten())
+                monitor.train((epoch, total_train_count, total_sample_count),
+                              train_results['loss'].flatten())
+                self.logger.add_summary(train_results['summary'],
+                                        total_train_count)
 
             phase = predict_phases >= (s % predict_phases[-1])
             phase = np.nonzero(phase)[0][0]
