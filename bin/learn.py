@@ -16,6 +16,7 @@ class Config:
         self.forget_bias = 0.0
         self.use_peepholes = True
         self.network_initializer = tf.random_uniform_initializer(-0.1, 0.1)
+        self.regression_initializer = tf.random_normal_initializer(stddev=0.1)
         for key in options:
             setattr(self, key, options[key])
 
@@ -50,37 +51,20 @@ class Learn:
         return np.sum([int(np.prod(p.get_shape())) for p in self.parameters])
 
     def run(self, target, config):
-        sample_count = config.sample_count
-        epoch_count = config.epoch_count
-        predict_each = config.predict_each
-        predict_count = config.predict_count
-        predict_phases = config.predict_phases
-
-        sample_count -= predict_count
-        sample_count -= sample_count % predict_each
-        predict_phases = np.cumsum(predict_phases)
-        config.sample_count = sample_count
-        config.predict_phases = predict_phases
+        config.sample_count -= config.predict_count
+        config.sample_count -= config.sample_count % config.predict_each
+        config.predict_phases = np.cumsum(config.predict_phases)
 
         print('Parameters: %d' % self.count_parameters())
-        print('Epoch samples: %d' % sample_count)
+        print('Epoch samples: %d' % config.sample_count)
 
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
-        for epoch in range(epoch_count):
+        for epoch in range(config.epoch_count):
             self._run_epoch(target, config, session, epoch)
 
     def _run_epoch(self, target, config, session, epoch):
-        dimension_count = config.dimension_count
-        sample_count = config.sample_count
-        train_each = config.train_each
-        predict_each = config.predict_each
-        predict_count = config.predict_count
-        predict_phases = config.predict_phases
-        monitor = config.monitor
-
         model = self.model
-
         train_fetches = {
             'finish': model.finish,
             'train': self.train,
@@ -89,78 +73,71 @@ class Learn:
         }
         train_feeds = {
             model.start: np.zeros(model.start.get_shape(), np.float32),
-            model.x: np.zeros([1, train_each, dimension_count], np.float32),
-            model.y: np.zeros([1, train_each, dimension_count], np.float32),
+            model.x: np.zeros([1, config.train_each, config.dimension_count],
+                              np.float32),
+            model.y: np.zeros([1, config.train_each, config.dimension_count],
+                              np.float32),
         }
-        predict_fetches = {
-            'finish': model.finish,
-            'y_hat': model.y_hat,
-        }
-        predict_feeds = {
-            model.start: None,
-            model.x: None,
-        }
+        predict_fetches = {'finish': model.finish, 'y_hat': model.y_hat}
+        predict_feeds = {model.start: None, model.x: None}
+        y = np.zeros([config.predict_count, config.dimension_count])
+        y_hat = np.zeros([config.predict_count, config.dimension_count])
+        for s, t in zip(range(config.sample_count - 1),
+                        range(1, config.sample_count)):
 
-        y = np.zeros([predict_count, dimension_count])
-        y_hat = np.zeros([predict_count, dimension_count])
-        for s, t in zip(range(sample_count - 1), range(1, sample_count)):
             train_feeds[model.x] = np.roll(train_feeds[model.x], -1, axis=1)
             train_feeds[model.y] = np.roll(train_feeds[model.y], -1, axis=1)
             train_feeds[model.x][0, -1, :] = target(s)
             train_feeds[model.y][0, -1, :] = target(t)
 
-            if t % train_each == 0:
-                total_sample_count = epoch*sample_count + t
-                total_train_count = total_sample_count // train_each
+            if t % config.train_each == 0:
+                total_sample_count = epoch*config.sample_count + t
+                total_train_count = total_sample_count // config.train_each
                 train_results = session.run(train_fetches, train_feeds)
                 train_feeds[model.start] = train_results['finish']
-                monitor.train((epoch, total_train_count, total_sample_count),
-                              train_results['loss'].flatten())
-                self.logger.add_summary(train_results['summary'],
-                                        total_train_count)
+                config.monitor.train((epoch, total_train_count, total_sample_count),
+                        train_results['loss'].flatten())
+                self.logger.add_summary(train_results['summary'], total_train_count)
 
-            phase = predict_phases >= (s % predict_phases[-1])
+            phase = config.predict_phases >= (s % config.predict_phases[-1])
             phase = np.nonzero(phase)[0][0]
-            if phase % 2 == 1 and t % predict_each == 0:
-                lag = t % train_each
+            if phase % 2 == 1 and t % config.predict_each == 0:
+                lag = t % config.train_each
                 predict_feeds[model.start] = train_feeds[model.start]
                 predict_feeds[model.x] = np.reshape(
-                    train_feeds[model.y][0, (train_each - 1 - lag):, :],
+                    train_feeds[model.y][0, (config.train_each - 1 - lag):, :],
                     [1, 1 + lag, -1])
-                for i in range(predict_count):
+                for i in range(config.predict_count):
                     predict_results = session.run(predict_fetches,
                                                   predict_feeds)
                     predict_feeds[model.start] = predict_results['finish']
                     y_hat[i, :] = predict_results['y_hat'][-1, :]
-                    predict_feeds[model.x] = np.reshape(y_hat[i, :],
-                                                        [1, 1, -1])
+                    predict_feeds[model.x] = np.reshape(y_hat[i, :], [1, 1, -1])
                     y[i, :] = target(t + i + 1)
-                monitor.predict(y, y_hat)
+                config.monitor.predict(y, y_hat)
 
 class Model:
     def __init__(self, config):
-        dimension_count = config.dimension_count
-        layer_count = config.layer_count
-        unit_count = config.unit_count
-
-        x = tf.placeholder(tf.float32, [1, None, dimension_count], name='x')
-        y = tf.placeholder(tf.float32, [1, None, dimension_count], name='y')
+        x = tf.placeholder(tf.float32, [1, None, config.dimension_count],
+                           name='x')
+        y = tf.placeholder(tf.float32, [1, None, config.dimension_count],
+                           name='y')
 
         with tf.variable_scope('network') as scope:
             cell = tf.nn.rnn_cell.LSTMCell(
-                unit_count,
+                config.unit_count,
                 state_is_tuple=True,
                 forget_bias=config.forget_bias,
                 use_peepholes=config.use_peepholes,
                 initializer=config.network_initializer)
-            cell = tf.nn.rnn_cell.MultiRNNCell([cell] * layer_count,
+            cell = tf.nn.rnn_cell.MultiRNNCell([cell] * config.layer_count,
                                                state_is_tuple=True)
-            start, state = Model._initialize(layer_count, unit_count)
+            start, state = Model._initialize(config)
             h, state = tf.nn.dynamic_rnn(cell, x, initial_state=state,
                                          parallel_iterations=1)
-            finish = Model._finalize(state, layer_count)
+            finish = Model._finalize(state, config)
 
-        y_hat, loss = Model._regress(h, y, dimension_count, unit_count)
+        y_hat, loss = Model._regress(h, y, config)
 
         self.x = x
         self.y = y
@@ -169,32 +146,32 @@ class Model:
         self.start = start
         self.finish = finish
 
-    def _finalize(state, layer_count):
+    def _finalize(state, config):
         parts = []
-        for i in range(layer_count):
+        for i in range(config.layer_count):
             parts.append(state[i].c)
             parts.append(state[i].h)
         return tf.pack(parts, name='finish')
 
-    def _initialize(layer_count, unit_count):
-        start = tf.placeholder(tf.float32, [2 * layer_count, 1, unit_count],
+    def _initialize(config):
+        start = tf.placeholder(tf.float32,
+                               [2 * config.layer_count, 1, config.unit_count],
                                name='start')
         parts = tf.unpack(start)
         state = []
-        for i in range(layer_count):
+        for i in range(config.layer_count):
             c, h = parts[2 * i], parts[2*i + 1]
             state.append(tf.nn.rnn_cell.LSTMStateTuple(c, h))
         return start, tuple(state)
 
-    def _regress(x, y, dimension_count, unit_count):
+    def _regress(x, y, config):
         with tf.variable_scope('regression') as scope:
             unroll_count = tf.shape(x)[1]
             x = tf.squeeze(x, squeeze_dims=[0])
             y = tf.squeeze(y, squeeze_dims=[0])
-            initializer = tf.random_normal_initializer(stddev=0.1)
-            w = tf.get_variable('w', [unit_count, dimension_count],
-                                initializer=initializer)
-            b = tf.get_variable('b', [1, dimension_count])
+            w = tf.get_variable('w', [config.unit_count, config.dimension_count],
+                                initializer=config.regression_initializer)
+            b = tf.get_variable('b', [1, config.dimension_count])
             y_hat = tf.matmul(x, w) + tf.tile(b, [unroll_count, 1])
             loss = tf.reduce_mean(tf.squared_difference(y_hat, y))
         return y_hat, loss
@@ -216,14 +193,17 @@ class Monitor:
         try:
             for channel in self.channels:
                 channel.put((y, y_hat))
-        finally: self.lock.release()
+        finally:
+            self.lock.release()
 
     def _predict_client(self, connection, address):
         print('Start serving {}.'.format(address))
         channel = queue.Queue()
         self.lock.acquire()
-        try: self.channels[channel] = True
-        finally: self.lock.release()
+        try:
+            self.channels[channel] = True
+        finally:
+            self.lock.release()
         try:
             client = connection.makefile(mode="w")
             while True:
@@ -234,8 +214,10 @@ class Monitor:
         except Exception as e:
             print('Stop serving {} ({}).'.format(address, e))
         self.lock.acquire()
-        try: del self.channels[channel]
-        finally: self.lock.release()
+        try:
+            del self.channels[channel]
+        finally:
+            self.lock.release()
 
     def _predict_server(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -266,4 +248,5 @@ def main():
     learn = Learn(config)
     learn.run(lambda i: data[i, :], config)
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    main()

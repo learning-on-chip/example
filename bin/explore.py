@@ -18,6 +18,8 @@ def main():
             pp.subplot(component_count, 1, i + 1)
             pp.plot(data[k:(k + chunk_size), i])
         pp.pause(1e-3)
-        if input('More? ') == 'no': break
+        if input('More? ') == 'no':
+            break
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    main()
