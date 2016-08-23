@@ -5,19 +5,18 @@ sys.path.append(os.path.dirname(__file__))
 
 import matplotlib.pyplot as pp
 import numpy as np
-import socket as sk
-import support as sp
+import socket, support
 
 def main(dimension_count, address):
     print('Connecting to {}...'.format(address))
-    socket = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
-    socket.connect(address)
-    server = socket.makefile(mode="r")
-    sp.figure()
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect(address)
+    client = client.makefile(mode="r")
+    support.figure()
     pp.pause(1e-3)
     y_limit = [-1, 1]
     while True:
-        row = [float(number) for number in server.readline().split(',')]
+        row = [float(number) for number in client.readline().split(',')]
         half = len(row) // 2
         y = np.reshape(np.array(row[0:half]), [-1, dimension_count])
         y_hat = np.reshape(np.array(row[half:]), [-1, dimension_count])

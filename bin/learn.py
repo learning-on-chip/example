@@ -4,9 +4,7 @@ import os, sys
 sys.path.append(os.path.dirname(__file__))
 
 import numpy as np
-import queue, subprocess, threading
-import socket as sk
-import support as sp
+import queue, socket, subprocess, support, threading
 import tensorflow as tf
 
 class Config:
@@ -218,17 +216,14 @@ class Monitor:
         try:
             for channel in self.channels:
                 channel.put((y, y_hat))
-        finally:
-            self.lock.release()
+        finally: self.lock.release()
 
     def _predict_client(self, connection, address):
         print('Start serving {}.'.format(address))
         channel = queue.Queue()
         self.lock.acquire()
-        try:
-            self.channels[channel] = True
-        finally:
-            self.lock.release()
+        try: self.channels[channel] = True
+        finally: self.lock.release()
         try:
             client = connection.makefile(mode="w")
             while True:
@@ -239,27 +234,25 @@ class Monitor:
         except Exception as e:
             print('Stop serving {} ({}).'.format(address, e))
         self.lock.acquire()
-        try:
-            del self.channels[channel]
-        finally:
-            self.lock.release()
+        try: del self.channels[channel]
+        finally: self.lock.release()
 
     def _predict_server(self):
-        socket = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
-        socket.setsockopt(sk.SOL_SOCKET, sk.SO_REUSEADDR, 1)
-        socket.bind(self.address)
-        socket.listen(1)
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(self.address)
+        server.listen(1)
         print('Listening to {}...'.format(self.address))
         while True:
             try:
-                connection, address = socket.accept()
+                connection, address = server.accept()
                 threading.Thread(target=self._predict_client,
                                  args=(connection, address)).start()
             except Exception as e:
                 print('Encountered a problem ({}).'.format(e))
 
 def main():
-    data = sp.normalize(sp.select(component_ids=[0]))
+    data = support.normalize(support.select(component_ids=[0]))
     config = Config({
         'dimension_count': data.shape[1],
         'sample_count': data.shape[0],
