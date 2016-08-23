@@ -3,9 +3,9 @@
 import os, sys
 sys.path.append(os.path.dirname(__file__))
 
-import matplotlib.pyplot as pp
 import numpy as np
 import queue, subprocess, threading
+import socket as sk
 import support as sp
 import tensorflow as tf
 
@@ -14,7 +14,10 @@ class Config:
         self.layer_count = 1
         self.unit_count = 20
         self.learning_rate = 1e-2
-        self.gradient_norm = 1
+        self.gradient_norm = 1.0
+        self.forget_bias = 0.0
+        self.use_peepholes = True
+        self.network_initializer = tf.random_uniform_initializer(-0.1, 0.1)
         for key in options:
             setattr(self, key, options[key])
 
@@ -146,10 +149,12 @@ class Model:
         y = tf.placeholder(tf.float32, [1, None, dimension_count], name='y')
 
         with tf.variable_scope('network') as scope:
-            initializer = tf.random_uniform_initializer(-0.1, 0.1)
-            cell = tf.nn.rnn_cell.LSTMCell(unit_count, initializer=initializer,
-                                           forget_bias=0.0, use_peepholes=True,
-                                           state_is_tuple=True)
+            cell = tf.nn.rnn_cell.LSTMCell(
+                unit_count,
+                state_is_tuple=True,
+                forget_bias=config.forget_bias,
+                use_peepholes=config.use_peepholes,
+                initializer=config.network_initializer)
             cell = tf.nn.rnn_cell.MultiRNNCell([cell] * layer_count,
                                                state_is_tuple=True)
             start, state = Model._initialize(layer_count, unit_count)
@@ -197,33 +202,66 @@ class Model:
         return y_hat, loss
 
 class Monitor:
-    def __init__(self):
-        self.channel = queue.Queue()
-        threading.Thread(target=self._predict_worker).start()
+    def __init__(self, address=('0.0.0.0', 4242)):
+        self.address = address
+        self.channels = {}
+        self.lock = threading.Lock()
+        threading.Thread(target=self._predict_server).start()
 
     def train(self, progress, loss):
         sys.stdout.write('%4d %8d %10d' % progress)
-        [sys.stdout.write(' %12.4e' % l) for l in loss]
+        [sys.stdout.write(' %12.4e' % loss) for loss in loss]
         sys.stdout.write('\n')
 
     def predict(self, y, y_hat):
-        self.channel.put((y, y_hat))
+        self.lock.acquire()
+        try:
+            for channel in self.channels:
+                channel.put((y, y_hat))
+        finally:
+            self.lock.release()
 
-    def _predict_worker(self):
-        process = subprocess.Popen((__file__, 'monitor'), stdin=subprocess.PIPE)
+    def _predict_client(self, connection, address):
+        print('Start serving {}.'.format(address))
+        channel = queue.Queue()
+        self.lock.acquire()
+        try:
+            self.channels[channel] = True
+        finally:
+            self.lock.release()
+        try:
+            client = connection.makefile(mode="w")
+            while True:
+                y, y_hat = channel.get()
+                row = np.concatenate((y.flatten(), y_hat.flatten()))
+                line = ','.join(['%.16e' % value for value in row]) + '\n'
+                client.write(line)
+        except Exception as e:
+            print('Stop serving {} ({}).'.format(address, e))
+        self.lock.acquire()
+        try:
+            del self.channels[channel]
+        finally:
+            self.lock.release()
+
+    def _predict_server(self):
+        socket = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
+        socket.setsockopt(sk.SOL_SOCKET, sk.SO_REUSEADDR, 1)
+        socket.bind(self.address)
+        socket.listen(1)
+        print('Listening to {}...'.format(self.address))
         while True:
-            y, y_hat = self.channel.get()
-            row = np.concatenate((y.flatten(), y_hat.flatten()))
-            line = ','.join(['%.16e' % value for value in row]) + '\n'
-            process.stdin.write(line.encode())
-
-component_ids=[0]
-dimension_count = len(component_ids)
+            try:
+                connection, address = socket.accept()
+                threading.Thread(target=self._predict_client,
+                                 args=(connection, address)).start()
+            except Exception as e:
+                print('Encountered a problem ({}).'.format(e))
 
 def main():
-    data = sp.normalize(sp.select(component_ids=component_ids))
+    data = sp.normalize(sp.select(component_ids=[0]))
     config = Config({
-        'dimension_count': dimension_count,
+        'dimension_count': data.shape[1],
         'sample_count': data.shape[0],
         'epoch_count': 100,
         'train_each': 50,
@@ -235,26 +273,4 @@ def main():
     learn = Learn(config)
     learn.run(lambda i: data[i, :], config)
 
-def main_monitor():
-    sp.figure()
-    pp.pause(1e-3)
-    y_limit = [-1, 1]
-    while True:
-        row = [float(number) for number in sys.stdin.readline().split(',')]
-        half = len(row) // 2
-        y = np.reshape(np.array(row[0:half]), [-1, dimension_count])
-        y_hat = np.reshape(np.array(row[half:]), [-1, dimension_count])
-        y_limit[0] = min(y_limit[0], np.min(y), np.min(y_hat))
-        y_limit[1] = max(y_limit[1], np.max(y), np.max(y_hat))
-        pp.clf()
-        for i in range(dimension_count):
-            pp.subplot(dimension_count, 1, i + 1)
-            pp.plot(y[:, i])
-            pp.plot(y_hat[:, i])
-            pp.xlim([0, y.shape[0] - 1])
-            pp.ylim(y_limit)
-            pp.legend(['Observed', 'Predicted'])
-        pp.pause(1e-3)
-
-if __name__ == '__main__':
-    exec('{}()'.format('_'.join(['main', *sys.argv[1:]])))
+if __name__ == '__main__': main()
