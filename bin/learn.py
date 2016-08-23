@@ -28,16 +28,14 @@ class Learn:
             with tf.variable_scope('optimization'):
                 parameters = tf.trainable_variables()
                 gradient = tf.gradients(model.loss, parameters)
-                gradient, _ = tf.clip_by_global_norm(gradient,
-                                                     config.gradient_norm)
+                gradient, _ = tf.clip_by_global_norm(gradient, config.gradient_norm)
                 optimizer = tf.train.AdamOptimizer(config.learning_rate)
                 train = optimizer.apply_gradients(zip(gradient, parameters))
             with tf.variable_scope('summary'):
                 tf.scalar_summary('log_loss', tf.log(tf.reduce_sum(model.loss)))
             logger = tf.train.SummaryWriter('log', graph)
             summary = tf.merge_all_summaries()
-            initialize = tf.initialize_variables(tf.all_variables(),
-                                                 name='initialize')
+            initialize = tf.initialize_variables(tf.all_variables(), name='initialize')
 
         self.graph = graph
         self.model = model
@@ -73,18 +71,14 @@ class Learn:
         }
         train_feeds = {
             model.start: np.zeros(model.start.get_shape(), np.float32),
-            model.x: np.zeros([1, config.train_each, config.dimension_count],
-                              np.float32),
-            model.y: np.zeros([1, config.train_each, config.dimension_count],
-                              np.float32),
+            model.x: np.zeros([1, config.train_each, config.dimension_count], np.float32),
+            model.y: np.zeros([1, config.train_each, config.dimension_count], np.float32),
         }
         predict_fetches = {'finish': model.finish, 'y_hat': model.y_hat}
         predict_feeds = {model.start: None, model.x: None}
         y = np.zeros([config.predict_count, config.dimension_count])
         y_hat = np.zeros([config.predict_count, config.dimension_count])
-        for s, t in zip(range(config.sample_count - 1),
-                        range(1, config.sample_count)):
-
+        for s, t in zip(range(config.sample_count - 1), range(1, config.sample_count)):
             train_feeds[model.x] = np.roll(train_feeds[model.x], -1, axis=1)
             train_feeds[model.y] = np.roll(train_feeds[model.y], -1, axis=1)
             train_feeds[model.x][0, -1, :] = target(s)
@@ -96,7 +90,7 @@ class Learn:
                 train_results = session.run(train_fetches, train_feeds)
                 train_feeds[model.start] = train_results['finish']
                 config.monitor.train((epoch, total_train_count, total_sample_count),
-                        train_results['loss'].flatten())
+                                     train_results['loss'].flatten())
                 self.logger.add_summary(train_results['summary'], total_train_count)
 
             phase = config.predict_phases >= (s % config.predict_phases[-1])
@@ -104,12 +98,10 @@ class Learn:
             if phase % 2 == 1 and t % config.predict_each == 0:
                 lag = t % config.train_each
                 predict_feeds[model.start] = train_feeds[model.start]
-                predict_feeds[model.x] = np.reshape(
-                    train_feeds[model.y][0, (config.train_each - 1 - lag):, :],
-                    [1, 1 + lag, -1])
+                y_tail = train_feeds[model.y][0, (config.train_each - 1 - lag):, :]
+                predict_feeds[model.x] = np.reshape(y_tail, [1, 1 + lag, -1])
                 for i in range(config.predict_count):
-                    predict_results = session.run(predict_fetches,
-                                                  predict_feeds)
+                    predict_results = session.run(predict_fetches, predict_feeds)
                     predict_feeds[model.start] = predict_results['finish']
                     y_hat[i, :] = predict_results['y_hat'][-1, :]
                     predict_feeds[model.x] = np.reshape(y_hat[i, :], [1, 1, -1])
@@ -118,25 +110,17 @@ class Learn:
 
 class Model:
     def __init__(self, config):
-        x = tf.placeholder(tf.float32, [1, None, config.dimension_count],
-                           name='x')
-        y = tf.placeholder(tf.float32, [1, None, config.dimension_count],
-                           name='y')
-
+        x = tf.placeholder(tf.float32, [1, None, config.dimension_count], name='x')
+        y = tf.placeholder(tf.float32, [1, None, config.dimension_count], name='y')
         with tf.variable_scope('network') as scope:
-            cell = tf.nn.rnn_cell.LSTMCell(
-                config.unit_count,
-                state_is_tuple=True,
-                forget_bias=config.forget_bias,
-                use_peepholes=config.use_peepholes,
-                initializer=config.network_initializer)
-            cell = tf.nn.rnn_cell.MultiRNNCell([cell] * config.layer_count,
-                                               state_is_tuple=True)
+            cell = tf.nn.rnn_cell.LSTMCell(config.unit_count, state_is_tuple=True,
+                                           forget_bias=config.forget_bias,
+                                           use_peepholes=config.use_peepholes,
+                                           initializer=config.network_initializer)
+            cell = tf.nn.rnn_cell.MultiRNNCell([cell] * config.layer_count, state_is_tuple=True)
             start, state = Model._initialize(config)
-            h, state = tf.nn.dynamic_rnn(cell, x, initial_state=state,
-                                         parallel_iterations=1)
+            h, state = tf.nn.dynamic_rnn(cell, x, initial_state=state, parallel_iterations=1)
             finish = Model._finalize(state, config)
-
         y_hat, loss = Model._regress(h, y, config)
 
         self.x = x
@@ -154,8 +138,7 @@ class Model:
         return tf.pack(parts, name='finish')
 
     def _initialize(config):
-        start = tf.placeholder(tf.float32,
-                               [2 * config.layer_count, 1, config.unit_count],
+        start = tf.placeholder(tf.float32, [2 * config.layer_count, 1, config.unit_count],
                                name='start')
         parts = tf.unpack(start)
         state = []
@@ -228,8 +211,7 @@ class Monitor:
         while True:
             try:
                 connection, address = server.accept()
-                threading.Thread(target=self._predict_client,
-                                 args=(connection, address)).start()
+                threading.Thread(target=self._predict_client, args=(connection, address)).start()
             except Exception as e:
                 print('Encountered a problem ({}).'.format(e))
 
