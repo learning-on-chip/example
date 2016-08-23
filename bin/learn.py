@@ -184,7 +184,7 @@ class Model:
         for i in range(layer_count):
             c, h = parts[2 * i], parts[2*i + 1]
             state.append(tf.nn.rnn_cell.LSTMStateTuple(c, h))
-        return start, state
+        return start, tuple(state)
 
     def _regress(x, y, dimension_count, unit_count):
         with tf.variable_scope('regression') as scope:
