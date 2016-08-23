@@ -31,7 +31,7 @@ class Learn:
                 optimizer = tf.train.AdamOptimizer(config.learning_rate)
                 train = optimizer.apply_gradients(zip(gradient, parameters))
             with tf.variable_scope('summary'):
-                tf.scalar_summary('loss', tf.reduce_sum(model.loss))
+                tf.scalar_summary('log_loss', tf.log(tf.reduce_sum(model.loss)))
             logger = tf.train.SummaryWriter('log', graph)
             summary = tf.merge_all_summaries()
             initialize = tf.initialize_variables(tf.all_variables(),
