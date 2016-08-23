@@ -5,14 +5,14 @@ sys.path.append(os.path.dirname(__file__))
 
 import matplotlib.pyplot as pp
 import numpy as np
-import socket, support
+import socket
 
 def main(dimension_count, address):
     print('Connecting to {}...'.format(address))
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect(address)
     client = client.makefile(mode="r")
-    support.figure()
+    pp.figure(figsize=(14, 6), dpi=80, facecolor='w', edgecolor='k')
     pp.pause(1e-3)
     y_limit = [-1, 1]
     while True:

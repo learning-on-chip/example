@@ -10,7 +10,7 @@ def main():
     data = support.select(component_ids=[0], sample_limit=100000)
     sample_count, component_count = data.shape
     chunk_size = 10000
-    support.figure()
+    pp.figure(figsize=(14, 6), dpi=80, facecolor='w', edgecolor='k')
     while True:
         pp.clf()
         k = random.randint(0, sample_count - chunk_size)

@@ -1,11 +1,7 @@
-import matplotlib.pyplot as pp
 import numpy as np
 import sqlite3
 
 DATABASE_PATH = 'tests/fixtures/database.sqlite3'
-
-def figure(width=14, height=6):
-    pp.figure(figsize=(width, height), dpi=80, facecolor='w', edgecolor='k')
 
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))
