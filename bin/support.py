@@ -6,32 +6,33 @@ DATABASE_PATH = 'tests/fixtures/database.sqlite3'
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))
 
-def select(component_ids=None, sample_limit=None, path=DATABASE_PATH):
+def select(components=None, sample_count=None, path=DATABASE_PATH):
     print('Reading "%s"...' % path)
     connection = sqlite3.connect(path)
     cursor = connection.cursor()
     sql = 'SELECT count(*), count(DISTINCT component_id) FROM profiles'
     cursor.execute(sql)
-    record_count, component_count = cursor.fetchone()
-    assert(record_count % component_count == 0)
-    sample_count = record_count // component_count
-    if component_ids is None: component_ids = list(range(0, component_count))
-    component_ids = list(filter(lambda c: c < component_count, component_ids))
-    if sample_limit is None: sample_limit = sample_count
-    sample_limit = min(sample_limit, sample_count)
+    total_sample_count, total_component_count = cursor.fetchone()
+    assert(total_sample_count % total_component_count == 0)
+    total_sample_count //= total_component_count
+    if components is None: components = list(range(0, total_component_count))
+    components = list(filter(lambda c: c < total_component_count, components))
+    component_count = len(components)
+    if sample_count is None: sample_count = total_sample_count
+    sample_count = min(sample_count, total_sample_count)
     print('Processing {}/{} samples for {}/{} components...'.format(
-        sample_limit, sample_count, len(component_ids), component_count))
-    sql = 'SELECT rowid, component_id, temperature FROM profiles ' \
+        sample_count, total_sample_count, component_count, total_component_count))
+    sql = 'SELECT rowid, component_id, power, temperature FROM profiles ' \
         'WHERE component_id in ({}) ORDER BY time ASC LIMIT {}'
-    sql = sql.format(', '.join([str(id) for id in component_ids]),
-                     sample_limit * len(component_ids))
+    sql = sql.format(', '.join([str(id) for id in components]), sample_count * component_count)
     cursor.execute(sql)
-    data = np.zeros([sample_limit, len(component_ids)])
-    mapping = np.zeros(component_count, dtype='int')
-    mapping[component_ids] = np.arange(0, len(component_ids))
+    data = np.zeros([sample_count, 2 * component_count])
+    mapping = np.zeros(total_component_count, dtype='int')
+    mapping[components] = np.arange(0, component_count)
     for row in cursor:
-        i = (row[0] - 1) // component_count
+        i = (row[0] - 1) // total_component_count
         j = mapping[row[1]]
-        data[i, j] = row[2]
+        data[i, 2*j + 0] = row[2]
+        data[i, 2*j + 1] = row[3]
     connection.close()
     return data

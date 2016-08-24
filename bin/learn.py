@@ -216,7 +216,7 @@ class Monitor:
                 print('Encountered a problem ({}).'.format(e))
 
 def main():
-    data = support.normalize(support.select(component_ids=[0]))
+    data = np.reshape(support.normalize(support.select(components=[0])[:, 1]), [-1, 1])
     config = Config({
         'dimension_count': data.shape[1],
         'sample_count': data.shape[0],
