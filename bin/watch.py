@@ -29,6 +29,7 @@ def main(dimension_count, address):
             pp.plot(y_hat[:, i])
             pp.xlim([0, y.shape[0] - 1])
             pp.ylim(y_limit)
+            pp.plot([0, y.shape[0] - 1], [0, 0], 'r')
             pp.legend(['Observed', 'Predicted'])
         pp.pause(1e-3)
 
