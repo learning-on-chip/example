@@ -233,6 +233,14 @@ class Target:
         i, j = self.partition[k]
         return np.reshape(self.data[i:j, 0], [-1, 1])
 
+class TestTarget:
+    def __init__(self, config):
+        self.dimension_count = 1
+        self.sample_count = 100000
+
+    def compute(self, k):
+        return np.reshape(np.sin(4 * np.pi / 40 * np.arange(0, 40)), [-1, 1])
+
 def main():
     config = Config()
     monitor = Monitor(config)
