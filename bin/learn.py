@@ -10,7 +10,7 @@ import tensorflow as tf
 class Config:
     def __init__(self, options={}):
         self.layer_count = 1
-        self.unit_count = 20
+        self.unit_count = 200
         self.epoch_count = 100
         self.learning_rate = 1e-2
         self.gradient_norm = 1.0
@@ -19,6 +19,7 @@ class Config:
         self.network_initializer = tf.random_uniform_initializer(-0.1, 0.1)
         self.regression_initializer = tf.random_normal_initializer(stddev=0.1)
         self.bind_address=('0.0.0.0', 4242)
+        self.schedule = [100 - 10, 10]
         self.update(options)
 
     def update(self, options):
@@ -167,7 +168,7 @@ class Monitor:
             np.nonzero(self.schedule >= (t % self.schedule[-1]))[0][0] % 2 == 1)
 
     def train(self, progress, loss):
-        sys.stdout.write('%4d %8d %10d' % progress)
+        sys.stdout.write('%4d %10d %10d' % progress)
         [sys.stdout.write(' %12.4e' % loss) for loss in loss]
         sys.stdout.write('\n')
 
@@ -233,11 +234,9 @@ class Target:
         return np.reshape(self.data[i:j, 0], [-1, 1])
 
 def main():
-    config = Config({
-        'component': 0,
-        'schedule': [100 - 10, 10],
-    })
+    config = Config()
     monitor = Monitor(config)
+    config.update({'component': 0})
     target = Target(config)
     config.update({
         'dimension_count': target.dimension_count,
