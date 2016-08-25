@@ -46,7 +46,7 @@ class Learn:
         self.initialize = initialize
 
     def count_parameters(self):
-        return np.sum([int(np.prod(p.get_shape())) for p in self.parameters])
+        return np.sum([int(np.prod(parameter.get_shape())) for parameter in self.parameters])
 
     def run(self, target, config):
         config.sample_count -= config.predict_count

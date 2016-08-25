@@ -18,10 +18,11 @@ def plot(data, partition):
     pp.gca().add_collection(cl.LineCollection(lines, colors='red'))
 
 def main():
-    data = support.select(components=[0], sample_count=100000)
-    sample_count, component_count = data.shape[0], data.shape[1] // 2
-    chunk_size = 10000
-    pp.figure(figsize=(14, 6), dpi=80, facecolor='w', edgecolor='k')
+    sample_count = 100000
+    chunk_size = 1000
+    data = support.select(components=[0], sample_count=sample_count)
+    component_count = data.shape[1] // 2
+    pp.figure(figsize=(16, 5), dpi=80, facecolor='w', edgecolor='k')
     while True:
         pp.clf()
         k = random.randint(0, sample_count - chunk_size)
