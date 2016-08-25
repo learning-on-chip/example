@@ -6,23 +6,24 @@ DATABASE_PATH = 'tests/fixtures/database.sqlite3'
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))
 
-def partition(power):
+def partition(power, left_margin=1, right_margin=1):
     power = np.int_(power > (np.min(power) + 1e-6))
+    sample_count = len(power)
     activity = np.diff(power)
     switch = np.reshape(list(np.nonzero(activity)), [-1])
     if activity[switch[0]] == -1:
         switch = np.insert(switch, 0, -1)
     if activity[switch[-1]] == 1:
-        switch = np.append(switch, len(power) - 1)
+        switch = np.append(switch, sample_count - 1)
     assert(len(switch) % 2 == 0)
     count = len(switch) // 2
     partition = np.zeros([count, 2], dtype='uint')
     for i in range(count):
         j = switch[2 * i] + 1
         k = switch[2*i + 1] + 1
-        partition[i, 0] = j
-        partition[i, 1] = k
         assert(np.all(power[j:k] == 1))
+        partition[i, 0] = max(0, j - left_margin)
+        partition[i, 1] = min(sample_count, k + right_margin)
     return partition
 
 def select(components=None, sample_count=None, path=DATABASE_PATH):
