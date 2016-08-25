@@ -94,7 +94,8 @@ class Learn:
                 feed[self.model.start] = result['finish']
                 y_hat[j, :] = result['y_hat'][-1, :]
                 feed[self.model.x] = np.reshape(y_hat[j, :], [1, 1, -1])
-            monitor.predict(support.shift(sample, -(i + 1)), y_hat)
+            if not monitor.predict(support.shift(sample, -(i + 1)), y_hat):
+                break
 
     def _zero_start(self):
         return np.zeros(self.model.start.get_shape(), np.float32)
@@ -177,6 +178,7 @@ class Monitor:
                 channel.put((y, y_hat))
         finally:
             self.lock.release()
+        return len(self.channels) > 0
 
     def _predict_client(self, connection, address):
         print('Start serving {}.'.format(address))
@@ -219,6 +221,7 @@ class Target:
         data = support.select(components=[config.component])
         partition = support.partition(data[:, 0])
         data = support.normalize(np.reshape(data[:, 1], [-1, 1]))
+        data -= np.min(data)
 
         self.data = data
         self.partition = partition
