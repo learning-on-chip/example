@@ -11,12 +11,17 @@ class Config:
     def __init__(self, options={}):
         self.layer_count = 1
         self.unit_count = 20
+        self.epoch_count = 100
         self.learning_rate = 1e-2
         self.gradient_norm = 1.0
         self.forget_bias = 0.0
         self.use_peepholes = True
         self.network_initializer = tf.random_uniform_initializer(-0.1, 0.1)
         self.regression_initializer = tf.random_normal_initializer(stddev=0.1)
+        self.bind_address=('0.0.0.0', 4242)
+        self.update(options)
+
+    def update(self, options):
         for key in options:
             setattr(self, key, options[key])
 
@@ -48,7 +53,7 @@ class Learn:
     def count_parameters(self):
         return np.sum([int(np.prod(parameter.get_shape())) for parameter in self.parameters])
 
-    def run(self, target, config):
+    def run(self, target, monitor, config):
         config.sample_count -= config.predict_count
         config.sample_count -= config.sample_count % config.predict_each
         config.predict_phases = np.cumsum(config.predict_phases)
@@ -59,9 +64,9 @@ class Learn:
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
         for epoch in range(config.epoch_count):
-            self._run_epoch(target, config, session, epoch)
+            self._run_epoch(target, monitor, config, session, epoch)
 
-    def _run_epoch(self, target, config, session, epoch):
+    def _run_epoch(self, target, monitor, config, session, epoch):
         model = self.model
         train_fetches = {
             'finish': model.finish,
@@ -81,16 +86,16 @@ class Learn:
         for s, t in zip(range(config.sample_count - 1), range(1, config.sample_count)):
             train_feeds[model.x] = np.roll(train_feeds[model.x], -1, axis=1)
             train_feeds[model.y] = np.roll(train_feeds[model.y], -1, axis=1)
-            train_feeds[model.x][0, -1, :] = target(s)
-            train_feeds[model.y][0, -1, :] = target(t)
+            train_feeds[model.x][0, -1, :] = target.compute(s)
+            train_feeds[model.y][0, -1, :] = target.compute(t)
 
             if t % config.train_each == 0:
                 total_sample_count = epoch*config.sample_count + t
                 total_train_count = total_sample_count // config.train_each
                 train_results = session.run(train_fetches, train_feeds)
                 train_feeds[model.start] = train_results['finish']
-                config.monitor.train((epoch, total_train_count, total_sample_count),
-                                     train_results['loss'].flatten())
+                monitor.train((epoch, total_train_count, total_sample_count),
+                              train_results['loss'].flatten())
                 self.logger.add_summary(train_results['summary'], total_train_count)
 
             phase = config.predict_phases >= (s % config.predict_phases[-1])
@@ -105,8 +110,8 @@ class Learn:
                     predict_feeds[model.start] = predict_results['finish']
                     y_hat[i, :] = predict_results['y_hat'][-1, :]
                     predict_feeds[model.x] = np.reshape(y_hat[i, :], [1, 1, -1])
-                    y[i, :] = target(t + i + 1)
-                config.monitor.predict(y, y_hat)
+                    y[i, :] = target.compute(t + i + 1)
+                monitor.predict(y, y_hat)
 
 class Model:
     def __init__(self, config):
@@ -160,8 +165,8 @@ class Model:
         return y_hat, loss
 
 class Monitor:
-    def __init__(self, address=('0.0.0.0', 4242)):
-        self.address = address
+    def __init__(self, config):
+        self.bind_address = config.bind_address
         self.channels = {}
         self.lock = threading.Lock()
         threading.Thread(target=self._predict_server).start()
@@ -205,9 +210,9 @@ class Monitor:
     def _predict_server(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(self.address)
+        server.bind(self.bind_address)
         server.listen(1)
-        print('Listening to {}...'.format(self.address))
+        print('Listening to {}...'.format(self.bind_address))
         while True:
             try:
                 connection, address = server.accept()
@@ -215,20 +220,34 @@ class Monitor:
             except Exception as e:
                 print('Encountered a problem ({}).'.format(e))
 
+class Target:
+    def __init__(self, config):
+        component_count = len(config.components)
+        data = support.select(components=config.components)[:, 1:(2*component_count):2]
+        data = support.normalize(np.reshape(data, [-1, component_count]))
+        self.dimension_count = component_count
+        self.sample_count = data.shape[0]
+        self.data = data
+
+    def compute(self, i):
+        return self.data[i, :]
+
 def main():
-    data = np.reshape(support.normalize(support.select(components=[0])[:, 1]), [-1, 1])
     config = Config({
-        'dimension_count': data.shape[1],
-        'sample_count': data.shape[0],
-        'epoch_count': 100,
+        'components': [0],
+    })
+    target = Target(config)
+    monitor = Monitor(config)
+    config.update({
+        'dimension_count': target.dimension_count,
+        'sample_count': target.sample_count,
         'train_each': 50,
         'predict_each': 5,
         'predict_count': 100,
         'predict_phases': [10000 - 1000, 1000],
-        'monitor': Monitor(),
     })
     learn = Learn(config)
-    learn.run(lambda i: data[i, :], config)
+    learn.run(target, monitor, config)
 
 if __name__ == '__main__':
     main()
