@@ -16,8 +16,8 @@ class Config:
         self.gradient_norm = 1.0
         self.forget_bias = 0.0
         self.use_peepholes = True
-        self.network_initializer = tf.random_uniform_initializer(-0.1, 0.1)
-        self.regression_initializer = tf.random_normal_initializer(stddev=0.1)
+        self.network_initializer = tf.random_uniform_initializer(-0.01, 0.01)
+        self.regression_initializer = tf.random_normal_initializer(stddev=0.01)
         self.bind_address=('0.0.0.0', 4242)
         self.schedule = [100 - 10, 10]
         self.update(options)
