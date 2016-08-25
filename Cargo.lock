@@ -67,7 +67,7 @@ dependencies = [
 
 [[package]]
 name = "gcc"
-version = "0.3.32"
+version = "0.3.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -193,7 +193,7 @@ name = "sqlite3-src"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "gcc 0.3.32 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gcc 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)",
  "pkg-config 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -214,7 +214,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "streamer"
 version = "0.0.1"
-source = "git+https://github.com/learning-on-chip/streamer.git#d0636bc74b0d5028a81a5033c944cf2ed89ac3ea"
+source = "git+https://github.com/learning-on-chip/streamer.git#8dcd5a74ba8921aa4d850019031f640f0623b2db"
 dependencies = [
  "arguments 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "configuration 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -307,7 +307,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum configuration 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b50ee620f514fa154fc8c1a9573e52afa09f2f7ffa51d1f6a2ad6a87f6101c76"
 "checksum dwt 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8f25331d533b79a0d3194ffc8132f3c5a22f5a14dc9ef44c1282ee671c27cefd"
 "checksum fractal 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "c104ba7731e146d3a6455a897e2ddc5259dc0e74c1f4aecb4de5a4c5965484a4"
-"checksum gcc 0.3.32 (registry+https://github.com/rust-lang/crates.io-index)" = "dcb000abd6df9df4c637f75190297ebe56c1d7e66b56bbf3b4aa7aece15f61a2"
+"checksum gcc 0.3.35 (registry+https://github.com/rust-lang/crates.io-index)" = "91ecd03771effb0c968fd6950b37e89476a578aaf1c70297d8e92b6516ec3312"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 "checksum lapack 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "df70cf6916d797fda1898308ececae0347debfb02c42c27821f9d25c45e0e8f0"
 "checksum lapack-sys 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6c2d0d0874340f39e13b8a6609167bdb059b09234b4301d8273adda79e9e8a42"
