@@ -54,64 +54,50 @@ class Learn:
         return np.sum([int(np.prod(parameter.get_shape())) for parameter in self.parameters])
 
     def run(self, target, monitor, config):
-        config.sample_count -= config.predict_count
-        config.sample_count -= config.sample_count % config.predict_each
-        config.predict_phases = np.cumsum(config.predict_phases)
-
         print('Parameters: %d' % self.count_parameters())
-        print('Epoch samples: %d' % config.sample_count)
-
+        print('Samples: %d' % config.sample_count)
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
-        for epoch in range(config.epoch_count):
-            self._run_epoch(target, monitor, config, session, epoch)
+        for e in range(config.epoch_count):
+            self._run_epoch(target, monitor, config, session, e)
 
-    def _run_epoch(self, target, monitor, config, session, epoch):
-        model = self.model
-        train_fetches = {
-            'finish': model.finish,
-            'train': self.train,
-            'loss': model.loss,
-            'summary': self.summary,
+    def _run_epoch(self, target, monitor, config, session, e):
+        for s in range(config.sample_count):
+            t = e*config.sample_count + s
+            if monitor.should_train(t):
+                self._run_train(target, monitor, config, session, e, s, t)
+            if monitor.should_predict(t):
+                self._run_predict(target, monitor, config, session, e, s, t)
+
+    def _run_train(self, target, monitor, config, session, e, s, t):
+        sample = target.compute(s)
+        feed = {
+            self.model.start: self._zero_start(),
+            self.model.x: np.reshape(sample, [1, -1, config.dimension_count]),
+            self.model.y: np.reshape(support.shift(sample, -1), [1, -1, config.dimension_count]),
         }
-        train_feeds = {
-            model.start: np.zeros(model.start.get_shape(), np.float32),
-            model.x: np.zeros([1, config.train_each, config.dimension_count], np.float32),
-            model.y: np.zeros([1, config.train_each, config.dimension_count], np.float32),
-        }
-        predict_fetches = {'finish': model.finish, 'y_hat': model.y_hat}
-        predict_feeds = {model.start: None, model.x: None}
-        y = np.zeros([config.predict_count, config.dimension_count])
-        y_hat = np.zeros([config.predict_count, config.dimension_count])
-        for s, t in zip(range(config.sample_count - 1), range(1, config.sample_count)):
-            train_feeds[model.x] = np.roll(train_feeds[model.x], -1, axis=1)
-            train_feeds[model.y] = np.roll(train_feeds[model.y], -1, axis=1)
-            train_feeds[model.x][0, -1, :] = target.compute(s)
-            train_feeds[model.y][0, -1, :] = target.compute(t)
+        fetch = {'train': self.train, 'loss': self.model.loss, 'summary': self.summary}
+        result = session.run(fetch, feed)
+        monitor.train((e, s, t), result['loss'].flatten())
+        self.logger.add_summary(result['summary'], t)
 
-            if t % config.train_each == 0:
-                total_sample_count = epoch*config.sample_count + t
-                total_train_count = total_sample_count // config.train_each
-                train_results = session.run(train_fetches, train_feeds)
-                train_feeds[model.start] = train_results['finish']
-                monitor.train((epoch, total_train_count, total_sample_count),
-                              train_results['loss'].flatten())
-                self.logger.add_summary(train_results['summary'], total_train_count)
+    def _run_predict(self, target, monitor, config, session, e, s, t):
+        sample = target.compute((s + 1) % config.sample_count)
+        step_count = sample.shape[0]
+        feed = {self.model.start: self._zero_start()}
+        fetch = {'y_hat': self.model.y_hat, 'finish': self.model.finish}
+        y_hat = np.zeros([step_count, config.dimension_count])
+        for i in range(step_count):
+            feed[self.model.x] = np.reshape(sample[:(i + 1), :], [1, i + 1, -1])
+            for j in range(step_count):
+                result = session.run(fetch, feed)
+                feed[self.model.start] = result['finish']
+                y_hat[j, :] = result['y_hat'][-1, :]
+                feed[self.model.x] = np.reshape(y_hat[j, :], [1, 1, -1])
+            monitor.predict(support.shift(sample, -(i + 1)), y_hat)
 
-            phase = config.predict_phases >= (s % config.predict_phases[-1])
-            phase = np.nonzero(phase)[0][0]
-            if phase % 2 == 1 and t % config.predict_each == 0:
-                lag = t % config.train_each
-                predict_feeds[model.start] = train_feeds[model.start]
-                y_tail = train_feeds[model.y][0, (config.train_each - 1 - lag):, :]
-                predict_feeds[model.x] = np.reshape(y_tail, [1, 1 + lag, -1])
-                for i in range(config.predict_count):
-                    predict_results = session.run(predict_fetches, predict_feeds)
-                    predict_feeds[model.start] = predict_results['finish']
-                    y_hat[i, :] = predict_results['y_hat'][-1, :]
-                    predict_feeds[model.x] = np.reshape(y_hat[i, :], [1, 1, -1])
-                    y[i, :] = target.compute(t + i + 1)
-                monitor.predict(y, y_hat)
+    def _zero_start(self):
+        return np.zeros(self.model.start.get_shape(), np.float32)
 
 class Model:
     def __init__(self, config):
@@ -167,9 +153,17 @@ class Model:
 class Monitor:
     def __init__(self, config):
         self.bind_address = config.bind_address
+        self.schedule = np.cumsum(config.schedule)
         self.channels = {}
         self.lock = threading.Lock()
         threading.Thread(target=self._predict_server).start()
+
+    def should_train(self, t):
+        return True
+
+    def should_predict(self, t):
+        return (len(self.channels) > 0 and
+            np.nonzero(self.schedule >= (t % self.schedule[-1]))[0][0] % 2 == 1)
 
     def train(self, progress, loss):
         sys.stdout.write('%4d %8d %10d' % progress)
@@ -222,29 +216,29 @@ class Monitor:
 
 class Target:
     def __init__(self, config):
-        component_count = len(config.components)
-        data = support.select(components=config.components)[:, 1:(2*component_count):2]
-        data = support.normalize(np.reshape(data, [-1, component_count]))
-        self.dimension_count = component_count
-        self.sample_count = data.shape[0]
-        self.data = data
+        data = support.select(components=[config.component])
+        partition = support.partition(data[:, 0])
+        data = support.normalize(np.reshape(data[:, 1], [-1, 1]))
 
-    def compute(self, i):
-        return self.data[i, :]
+        self.data = data
+        self.partition = partition
+        self.dimension_count = 1
+        self.sample_count = partition.shape[0]
+
+    def compute(self, k):
+        i, j = self.partition[k]
+        return np.reshape(self.data[i:j, 0], [-1, 1])
 
 def main():
     config = Config({
-        'components': [0],
+        'component': 0,
+        'schedule': [100 - 10, 10],
     })
-    target = Target(config)
     monitor = Monitor(config)
+    target = Target(config)
     config.update({
         'dimension_count': target.dimension_count,
         'sample_count': target.sample_count,
-        'train_each': 50,
-        'predict_each': 5,
-        'predict_count': 100,
-        'predict_phases': [10000 - 1000, 1000],
     })
     learn = Learn(config)
     learn.run(target, monitor, config)

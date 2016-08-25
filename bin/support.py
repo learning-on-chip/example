@@ -56,3 +56,11 @@ def select(components=None, sample_count=None, path=DATABASE_PATH):
         data[i, 2*j + 1] = row[3]
     connection.close()
     return data
+
+def shift(data, amount, padding=0.0):
+    data = np.roll(data, amount, axis=0)
+    if amount > 0:
+        data[:amount, :] = padding
+    elif amount < 0:
+        data[amount:, :] = padding
+    return data
