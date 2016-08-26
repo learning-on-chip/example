@@ -11,9 +11,10 @@ class Config:
     def __init__(self, options={}):
         self.layer_count = 1
         self.unit_count = 200
+        self.cell_clip = 1.0
         self.epoch_count = 100
         self.learning_rate = 1e-2
-        self.gradient_norm = 1.0
+        self.gradient_clip = 1.0
         self.forget_bias = 0.0
         self.use_peepholes = True
         self.network_initializer = tf.random_uniform_initializer(-0.01, 0.01)
@@ -34,7 +35,7 @@ class Learn:
             with tf.variable_scope('optimization'):
                 parameters = tf.trainable_variables()
                 gradient = tf.gradients(model.loss, parameters)
-                gradient, _ = tf.clip_by_global_norm(gradient, config.gradient_norm)
+                gradient, _ = tf.clip_by_global_norm(gradient, config.gradient_clip)
                 optimizer = tf.train.AdamOptimizer(config.learning_rate)
                 train = optimizer.apply_gradients(zip(gradient, parameters))
             with tf.variable_scope('summary'):
@@ -106,7 +107,9 @@ class Model:
         x = tf.placeholder(tf.float32, [1, None, config.dimension_count], name='x')
         y = tf.placeholder(tf.float32, [1, None, config.dimension_count], name='y')
         with tf.variable_scope('network') as scope:
-            cell = tf.nn.rnn_cell.LSTMCell(config.unit_count, state_is_tuple=True,
+            cell = tf.nn.rnn_cell.LSTMCell(config.unit_count,
+                                           state_is_tuple=True,
+                                           cell_clip=config.cell_clip,
                                            forget_bias=config.forget_bias,
                                            use_peepholes=config.use_peepholes,
                                            initializer=config.network_initializer)
