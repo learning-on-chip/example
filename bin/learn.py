@@ -158,7 +158,7 @@ class Monitor:
         self.schedule = np.cumsum(config.schedule)
         self.channels = {}
         self.lock = threading.Lock()
-        threading.Thread(target=self._predict_server).start()
+        threading.Thread(target=self._predict_server, daemon=True).start()
 
     def should_train(self, t):
         return True
@@ -213,7 +213,8 @@ class Monitor:
         while True:
             try:
                 connection, address = server.accept()
-                threading.Thread(target=self._predict_client, args=(connection, address)).start()
+                threading.Thread(target=self._predict_client, daemon=True,
+                                 args=(connection, address)).start()
             except Exception as e:
                 print('Encountered a problem ({}).'.format(e))
 
