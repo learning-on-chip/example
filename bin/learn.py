@@ -193,9 +193,8 @@ class Monitor:
             client = connection.makefile(mode="w")
             while True:
                 y, y_hat = channel.get()
-                row = np.concatenate((y.flatten(), y_hat.flatten()))
-                line = ','.join(['%.16e' % value for value in row]) + '\n'
-                client.write(line)
+                client.write(','.join([str(value) for value in y.flatten()]) + ',')
+                client.write(','.join([str(value) for value in y_hat.flatten()]) + '\n')
         except Exception as e:
             print('Stop serving {} ({}).'.format(address, e))
         self.lock.acquire()
