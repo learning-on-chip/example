@@ -87,15 +87,15 @@ class Learn:
         step_count = sample.shape[0]
         feed = {self.model.start: self._zero_start()}
         fetch = {'y_hat': self.model.y_hat, 'finish': self.model.finish}
-        y_hat = np.zeros([step_count, config.dimension_count])
         for i in range(step_count):
             feed[self.model.x] = np.reshape(sample[:(i + 1), :], [1, i + 1, -1])
-            for j in range(step_count):
+            y_hat = np.zeros([step_count, config.dimension_count])
+            for j in range(step_count - i - 1):
                 result = session.run(fetch, feed)
                 feed[self.model.start] = result['finish']
                 y_hat[j, :] = result['y_hat'][-1, :]
                 feed[self.model.x] = np.reshape(y_hat[j, :], [1, 1, -1])
-            if not monitor.predict(support.shift(sample, -(i + 1)), y_hat):
+            if not monitor.predict(support.shift(sample, -i - 1), y_hat):
                 break
 
     def _zero_start(self):
