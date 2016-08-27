@@ -234,7 +234,7 @@ class Target:
     def __init__(self, config):
         data = support.select(components=[config.component])
         partition = support.partition(data[:, 0])
-        data = support.normalize(np.reshape(data[:, 1], [-1, 1]))
+        data = support.normalize(np.reshape(data[:, 0], [-1, 1]))
 
         self.data = data
         self.partition = partition
