@@ -30,7 +30,7 @@ def partition(power, left_margin=0, right_margin=0, min_length=10):
     return partition[:chosen_count, :]
 
 def select(components=None, sample_count=None, path=DATABASE_PATH):
-    print('Reading "%s"...' % path)
+    print('Reading "{}"...'.format(path))
     connection = sqlite3.connect(path)
     cursor = connection.cursor()
     sql = 'SELECT count(*), count(DISTINCT component_id) FROM profiles'

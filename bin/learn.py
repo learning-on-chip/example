@@ -12,15 +12,17 @@ class Config:
         self.layer_count = 1
         self.unit_count = 200
         self.cell_clip = 1.0
-        self.epoch_count = 100
-        self.learning_rate = 1e-2
-        self.gradient_clip = 1.0
         self.forget_bias = 0.0
         self.use_peepholes = True
         self.network_initializer = tf.random_uniform_initializer(-0.01, 0.01)
         self.regression_initializer = tf.random_normal_initializer(stddev=0.01)
+        self.learning_rate = 1e-3
+        self.gradient_clip = 1.0
+        self.epoch_count = 100
         self.bind_address=('0.0.0.0', 4242)
-        self.schedule = [100 - 10, 10]
+        self.schedule = [1000 - 10, 10]
+        self.log_path = 'tmp/log'
+        self.save_path = 'tmp/model.ckpt'
         self.update(options)
 
     def update(self, options):
@@ -40,9 +42,10 @@ class Learn:
                 train = optimizer.apply_gradients(zip(gradient, parameters))
             with tf.variable_scope('summary'):
                 tf.scalar_summary('log_loss', tf.log(tf.reduce_sum(model.loss)))
-            logger = tf.train.SummaryWriter('log', graph)
+            logger = tf.train.SummaryWriter(config.log_path, graph)
             summary = tf.merge_all_summaries()
             initialize = tf.initialize_variables(tf.all_variables(), name='initialize')
+            saver = tf.train.Saver()
 
         self.graph = graph
         self.model = model
@@ -51,6 +54,7 @@ class Learn:
         self.logger = logger
         self.summary = summary
         self.initialize = initialize
+        self.saver = saver
 
     def count_parameters(self):
         return np.sum([int(np.prod(parameter.get_shape())) for parameter in self.parameters])
@@ -60,8 +64,14 @@ class Learn:
         print('Samples: %d' % config.sample_count)
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
+        if os.path.isfile(config.save_path):
+            if input('Found a model in "{}". Restore? '.format(config.save_path)) == 'yes':
+                self.saver.restore(session, config.save_path)
+                print('Restored. Continue learning...')
         for e in range(config.epoch_count):
             self._run_epoch(target, monitor, config, session, e)
+            path = self.saver.save(session, config.save_path)
+            print('Saved the model in "{}".'.format(path))
 
     def _run_epoch(self, target, monitor, config, session, e):
         for s in range(config.sample_count):
