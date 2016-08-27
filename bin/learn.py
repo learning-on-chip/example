@@ -4,7 +4,7 @@ import os, sys
 sys.path.append(os.path.dirname(__file__))
 
 import numpy as np
-import queue, socket, subprocess, support, threading
+import queue, math, socket, subprocess, support, threading
 import tensorflow as tf
 
 class Config:
@@ -65,7 +65,7 @@ class Learn:
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
         if os.path.isfile(config.save_path):
-            if input('Found a model in "{}". Restore? '.format(config.save_path)) == 'yes':
+            if input('Found a model in "{}". Restore? '.format(config.save_path)) != 'no':
                 self.saver.restore(session, config.save_path)
                 print('Restored. Continue learning...')
         for e in range(config.epoch_count):
@@ -90,7 +90,9 @@ class Learn:
         }
         fetch = {'train': self.train, 'loss': self.model.loss, 'summary': self.summary}
         result = session.run(fetch, feed)
-        monitor.train((e, s, t), result['loss'].flatten())
+        loss = result['loss'].flatten()
+        assert(np.all([not math.isnan(l) for l in loss]))
+        monitor.train((e, s, t), loss)
         self.logger.add_summary(result['summary'], t)
 
     def _run_predict(self, target, monitor, config, session, e, s, t):
