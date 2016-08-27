@@ -12,7 +12,7 @@ class Config:
         self.layer_count = 1
         self.unit_count = 200
         self.cell_clip = 1.0
-        self.forget_bias = 0.0
+        self.forget_bias = 1.0
         self.use_peepholes = True
         self.network_initializer = tf.random_uniform_initializer(-0.01, 0.01)
         self.regression_initializer = tf.random_normal_initializer(stddev=0.01)
