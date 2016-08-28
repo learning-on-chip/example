@@ -11,6 +11,8 @@ def partition(power, left_margin=0, right_margin=0, min_length=10):
     sample_count = len(power)
     activity = np.diff(power)
     switch = np.reshape(list(np.nonzero(activity)), [-1])
+    if len(switch) == 0:
+        return np.zeros([0, 2], dtype='uint')
     if activity[switch[0]] == -1:
         switch = np.insert(switch, 0, -1)
     if activity[switch[-1]] == 1:

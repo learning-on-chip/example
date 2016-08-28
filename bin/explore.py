@@ -18,22 +18,29 @@ def plot(data, partition):
     pp.gca().add_collection(cl.LineCollection(lines, colors='red'))
 
 def main():
+    components = [0]
     sample_count = 100000
     chunk_size = 1000
-    data = support.select(components=[0], sample_count=sample_count)
-    component_count = data.shape[1] // 2
+    component_count = len(components)
+    data = support.select(components=components, sample_count=sample_count)
+    power = data[:, 0:(2 * component_count):2]
+    power_limit = [np.min(power), np.max(power)]
+    temperature = data[:, 1:(2 * component_count):2]
+    temperature_limit = [np.min(temperature), np.max(temperature)]
     pp.figure(figsize=(16, 5), dpi=80, facecolor='w', edgecolor='k')
     while True:
         pp.clf()
         k = random.randint(0, sample_count - chunk_size)
-        for i in range(0, 2 * component_count, 2):
-            power = data[k:(k + chunk_size), 0]
-            temperature = data[k:(k + chunk_size), 1]
-            partition = support.partition(power)
-            pp.subplot(component_count, 2, i + 1)
-            plot(power, partition)
-            pp.subplot(component_count, 2, i + 2)
-            plot(temperature, partition)
+        for i in range(component_count):
+            power_chunk = power[k:(k + chunk_size), i]
+            temperature_chunk = temperature[k:(k + chunk_size), i]
+            partition = support.partition(power_chunk)
+            pp.subplot(component_count, 2, 2*i + 1)
+            plot(power_chunk, partition)
+            pp.ylim(power_limit)
+            pp.subplot(component_count, 2, 2*i + 2)
+            plot(temperature_chunk, partition)
+            pp.ylim(temperature_limit)
         pp.pause(1e-3)
         if input('More? ') == 'no':
             break
