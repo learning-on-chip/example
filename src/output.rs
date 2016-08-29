@@ -8,7 +8,7 @@ use streamer::system::Event;
 pub struct Output {
     #[allow(dead_code)]
     connection: Connection,
-    statement: Statement<'static>,
+    profiles: Statement<'static>,
     buffer: (usize, usize, Vec<f64>, Vec<f64>),
 }
 
@@ -30,7 +30,7 @@ impl Output {
         ));
         ok!(connection.execute(ok!(delete_from("profiles").compile())));
         let units = platform.elements().len();
-        let statement = {
+        let profiles = {
             let statement = ok!(connection.prepare(
                 ok!(insert_into("profiles").columns(&[
                     "time", "component_id", "power", "temperature",
@@ -44,7 +44,7 @@ impl Output {
         }
         Ok(Output {
             connection: connection,
-            statement: statement,
+            profiles: profiles,
             buffer: (subsample as usize, 0, vec![0.0; units], vec![0.0; units]),
         })
     }
@@ -59,7 +59,7 @@ impl Output {
     fn write_profiles(&mut self, profiles: &(Profile, Profile)) -> Result<()> {
         let &Profile { units, steps, time, time_step, data: ref new_power } = &profiles.0;
         let &Profile { data: ref new_temperature, .. } = &profiles.1;
-        let &mut Output { ref mut statement, ref mut buffer, .. } = self;
+        let &mut Output { profiles: ref mut statement, ref mut buffer, .. } = self;
         let &mut (subsample, ref mut position, ref mut power, ref mut temperature) = buffer;
         for i in 0..steps {
             for j in 0..units {
