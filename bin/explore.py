@@ -35,10 +35,10 @@ def main():
             power_chunk = power[k:(k + chunk_size), i]
             temperature_chunk = temperature[k:(k + chunk_size), i]
             partition = support.partition(power_chunk)
-            pp.subplot(component_count, 2, 2*i + 1)
+            pp.subplot(2 * component_count, 1, 2*i + 1)
             plot(power_chunk, partition)
             pp.ylim(power_limit)
-            pp.subplot(component_count, 2, 2*i + 2)
+            pp.subplot(2 * component_count, 1, 2*i + 2)
             plot(temperature_chunk, partition)
             pp.ylim(temperature_limit)
         pp.pause(1e-3)
