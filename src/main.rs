@@ -57,7 +57,6 @@ fn start() -> Result<()> {
     } else {
         Logger::install(LogLevel::Warn);
     }
-
     let config = ok!(TOML::open(some!(arguments.get::<String>("config"),
                                       "a configuration file is required")));
     macro_rules! branch(($name:expr) => (config.branch($name).as_ref().unwrap_or(&config)));
@@ -71,7 +70,6 @@ fn start() -> Result<()> {
     };
     let time_span = *some!(config.get::<f64>("output.time_span"), "a time span is required");
     let mut output = try!(Output::new(system.platform(), branch!("output")));
-
     info!(target: "Example", "Synthesizing {} seconds...", time_span);
     while let Some((event, data)) = try!(system.next()) {
         if event.time > time_span {
@@ -81,7 +79,6 @@ fn start() -> Result<()> {
         try!(output.next(&event, &data));
     }
     info!(target: "Example", "Well done.");
-
     Ok(())
 }
 
@@ -89,12 +86,21 @@ fn display(system: &System, event: &Event) {
     use streamer::system::EventKind;
 
     let (job, kind) = match &event.kind {
-        &EventKind::Arrived(ref job) => (job, "arrived"),
-        &EventKind::Started(ref job) => (job, "started"),
-        &EventKind::Finished(ref job) => (job, "finished"),
+        &EventKind::Arrive(ref job) => (job, "arrive"),
+        &EventKind::Start(ref job, _) => (job, "start"),
+        &EventKind::Finish(ref job, _) => (job, "finish"),
     };
     info!(target: "Example",
-          "{:8.2} s | job #{:4} ( {:20} | {:2} units | {:6.2} s ) {:8} | {:2} queued",
-          event.time, job.id, job.name, job.units, job.duration(), kind,
+          "{:10.2} s | {:6} | # {:<5} ( {:15} | {:2} units | {:6.2} s ) {:2} queued",
+          event.time, kind, job.id, shorten(&job.name, 15), job.units, job.duration(),
           system.history().arrived - system.history().started);
+}
+
+fn shorten(line: &str, limit: usize) -> String {
+    if line.len() <= limit {
+        return line.to_string();
+    }
+    let mut line = line[0..(limit - 1)].to_string();
+    line.push('…');
+    line
 }
