@@ -6,10 +6,10 @@ DATABASE_PATH = 'tests/fixtures/database.sqlite3'
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))
 
-def partition(power, left_margin=0, right_margin=0, min_length=10):
-    power = np.int_(power > (np.min(power) + 1e-6))
-    sample_count = len(power)
-    activity = np.diff(power)
+def partition(data, left_margin=0, right_margin=0, min_length=10, epsilon=1e-6):
+    data = np.int_(data > (np.min(data) + epsilon))
+    sample_count = len(data)
+    activity = np.diff(data)
     switch = np.reshape(list(np.nonzero(activity)), [-1])
     if len(switch) == 0:
         return np.zeros([0, 2], dtype='uint')
@@ -24,7 +24,7 @@ def partition(power, left_margin=0, right_margin=0, min_length=10):
     for i in range(total_count):
         j = switch[2 * i] + 1
         k = switch[2*i + 1] + 1
-        assert(np.all(power[j:k] == 1))
+        assert(np.all(data[j:k] == 1))
         partition[chosen_count, 0] = max(0, j - left_margin)
         partition[chosen_count, 1] = min(sample_count, k + right_margin)
         if partition[chosen_count, 1] - partition[chosen_count, 0] >= min_length:
