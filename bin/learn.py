@@ -19,7 +19,7 @@ class Config:
         self.learning_rate = 1e-3
         self.gradient_clip = 1.0
         self.epoch_count = 100
-        self.bind_address=('0.0.0.0', 4242)
+        self.bind_address = ('0.0.0.0', 4242)
         self.schedule = [1000 - 10, 10]
         self.log_path = 'tmp/log'
         self.save_path = 'tmp/model.ckpt'
