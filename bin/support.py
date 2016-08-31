@@ -1,7 +1,7 @@
 import numpy as np
 import sqlite3
 
-DATABASE_PATH = 'tests/fixtures/database.sqlite3'
+DATABASE_PATH = 'output/database.sqlite3'
 
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))

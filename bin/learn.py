@@ -21,8 +21,8 @@ class Config:
         self.epoch_count = 100
         self.bind_address = ('0.0.0.0', 4242)
         self.schedule = [1000 - 10, 10]
-        self.log_path = 'tmp/log'
-        self.save_path = 'tmp/model.ckpt'
+        self.log_path = 'output/log'
+        self.save_path = 'output/model.ckpt'
         self.update(options)
 
     def update(self, options):
