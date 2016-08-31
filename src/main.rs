@@ -62,10 +62,10 @@ fn start() -> Result<()> {
     macro_rules! branch(($name:expr) => (config.branch($name).as_ref().unwrap_or(&config)));
     let mut system = {
         let source = streamer::source(&config);
-        let traffic = try!(traffic::Fractal::new(branch!("traffic"), &source));
-        let workload = try!(workload::Random::new(branch!("workload"), &source));
+        let traffic = try!(traffic::Fractal::new(branch!("traffic"), source.clone()));
+        let workload = try!(workload::Random::new(branch!("workload"), source.clone()));
         let platform = try!(platform::Thermal::new(branch!("platform")));
-        let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform));
+        let schedule = try!(schedule::Impartial::new(branch!("schedule"), &platform, source));
         try!(System::new(traffic, workload, platform, schedule))
     };
     let time_span = *some!(config.get::<f64>("output.time_span"), "a time span is required");

@@ -209,7 +209,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "streamer"
 version = "0.0.1"
-source = "git+https://github.com/learning-on-chip/streamer.git#880b3dc59f04e05016feb9458042788373235f09"
+source = "git+https://github.com/learning-on-chip/streamer.git#f32f94567b02e6d31bd256db246329628042a7a1"
 dependencies = [
  "arguments 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "configuration 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
