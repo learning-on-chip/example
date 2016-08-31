@@ -48,7 +48,7 @@ def select(components=None, sample_count=None, path=DATABASE_PATH):
     print('Processing {}/{} samples for {}/{} components...'.format(
         sample_count, total_sample_count, component_count, total_component_count))
     sql = 'SELECT rowid, component_id, power, temperature FROM profiles ' \
-        'WHERE component_id in ({}) ORDER BY time ASC LIMIT {}'
+        'WHERE component_id in ({}) ORDER BY sequence_id ASC LIMIT {}'
     sql = sql.format(', '.join([str(id) for id in components]), sample_count * component_count)
     cursor.execute(sql)
     data = np.zeros([sample_count, 2 * component_count])

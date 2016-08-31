@@ -23,6 +23,8 @@ def main():
     chunk_size = 1000
     component_count = len(components)
     data = support.select(components=components, sample_count=sample_count)
+    sample_count = data.shape[0]
+    chunk_size = min(chunk_size, sample_count)
     power = data[:, 0:(2 * component_count):2]
     power_limit = [np.min(power), np.max(power)]
     temperature = data[:, 1:(2 * component_count):2]

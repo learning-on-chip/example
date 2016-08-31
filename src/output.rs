@@ -7,9 +7,10 @@ use streamer::system::{Event, EventKind};
 
 pub struct Output {
     connection: Connection,
-    events: Statement<'static>,
+    markers: Statement<'static>,
     profiles: Statement<'static>,
-    position: usize,
+    processed: usize,
+    written: usize,
     reduction: usize,
     buffers: (Vec<f64>, Vec<f64>),
 }
@@ -25,18 +26,18 @@ impl Output {
             PRAGMA journal_mode = MEMORY;
             PRAGMA synchronous = OFF;
         "));
-        let events = {
+        let markers = {
             ok!(connection.execute(
-                ok!(create_table("events").if_not_exists().columns(&[
-                    "time".integer().not_null(),
+                ok!(create_table("markers").if_not_exists().columns(&[
+                    "sequence_id".integer().not_null(),
                     "component_id".integer().not_null(),
                     "kind".integer().not_null(),
                 ]).compile())
             ));
-            ok!(connection.execute(ok!(delete_from("events").compile())));
+            ok!(connection.execute(ok!(delete_from("markers").compile())));
             let statement = ok!(connection.prepare(
-                ok!(insert_into("events").columns(&[
-                    "time", "component_id", "kind",
+                ok!(insert_into("markers").columns(&[
+                    "sequence_id", "component_id", "kind",
                 ]).compile())
             ));
             unsafe { mem::transmute(statement) }
@@ -44,7 +45,7 @@ impl Output {
         let profiles = {
             ok!(connection.execute(
                 ok!(create_table("profiles").if_not_exists().columns(&[
-                    "time".integer().not_null(),
+                    "sequence_id".integer().not_null(),
                     "component_id".integer().not_null(),
                     "power".float().not_null(),
                     "temperature".float().not_null(),
@@ -53,7 +54,7 @@ impl Output {
             ok!(connection.execute(ok!(delete_from("profiles").compile())));
             let statement = ok!(connection.prepare(
                 ok!(insert_into("profiles").columns(&[
-                    "time", "component_id", "power", "temperature",
+                    "sequence_id", "component_id", "power", "temperature",
                 ]).batch(units).compile())
             ));
             unsafe { mem::transmute(statement) }
@@ -64,26 +65,25 @@ impl Output {
         }
         Ok(Output {
             connection: connection,
-            events: events,
+            markers: markers,
             profiles: profiles,
-            position: 0,
+            processed: 0,
+            written: 0,
             reduction: reduction as usize,
             buffers: (vec![0.0; units], vec![0.0; units]),
         })
     }
 
     pub fn next(&mut self, event: &Event, profiles: &(Profile, Profile)) -> Result<()> {
-        self.position += profiles.0.steps;
         ok!(self.connection.execute("BEGIN TRANSACTION"));
-        ok!(self.write_events(event));
         ok!(self.write_profiles(profiles));
+        ok!(self.write_markers(event));
         ok!(self.connection.execute("END TRANSACTION"));
         Ok(())
     }
 
-    fn write_events(&mut self, event: &Event) -> Result<()> {
-        let &mut Output { events: ref mut statement, position, reduction, .. } = self;
-        let time = position / reduction;
+    fn write_markers(&mut self, event: &Event) -> Result<()> {
+        let &mut Output { markers: ref mut statement, written, .. } = self;
         let (kind, mapping) = match &event.kind {
             &EventKind::Start(_, ref mapping) => (0, mapping),
             &EventKind::Finish(_, ref mapping) => (1, mapping),
@@ -91,7 +91,7 @@ impl Output {
         };
         for &(_, j) in mapping {
             ok!(statement.reset());
-            ok!(statement.bind(1, time as i64));
+            ok!(statement.bind(1, written as i64));
             ok!(statement.bind(2, j as i64));
             ok!(statement.bind(3, kind as i64));
             if State::Done != ok!(statement.next()) {
@@ -105,24 +105,24 @@ impl Output {
         let &Profile { units, steps, data: ref new_power, .. } = &profiles.0;
         let &Profile { data: ref new_temperature, .. } = &profiles.1;
         let &mut Output {
-            profiles: ref mut statement, position, reduction,
-            buffers: (ref mut power, ref mut temperature), ..
+            profiles: ref mut statement, ref mut processed, ref mut written,
+            reduction, buffers: (ref mut power, ref mut temperature), ..
         } = self;
         for i in 0..steps {
             for j in 0..units {
                 power[j] += new_power[i * units + j];
                 temperature[j] += new_temperature[i * units + j];
             }
-            if (position + i + 1) % reduction > 0 {
+            *processed += 1;
+            if *processed % reduction > 0 {
                 continue;
             }
-            let time = (position + i + 1) / reduction - 1;
             ok!(statement.reset());
             let mut k = 0;
             for j in 0..units {
                 power[j] /= reduction as f64;
                 temperature[j] /= reduction as f64;
-                ok!(statement.bind(k + 1, time as i64));
+                ok!(statement.bind(k + 1, *written as i64));
                 ok!(statement.bind(k + 2, j as i64));
                 ok!(statement.bind(k + 3, power[j]));
                 ok!(statement.bind(k + 4, temperature[j]));
@@ -133,6 +133,7 @@ impl Output {
             if State::Done != ok!(statement.next()) {
                 raise!("failed to write into the database");
             }
+            *written += 1;
         }
         Ok(())
     }
