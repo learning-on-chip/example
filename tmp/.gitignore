@@ -1,0 +1,3 @@
+*.ckpt
+*.sqlite3
+log
