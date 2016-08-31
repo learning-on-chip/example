@@ -7,17 +7,17 @@ time_span = 86400.0
 reduction = 100
 
 [platform.power]
-path = "reference/workload/gainestown/parsec/small/blackscholes.sqlite3"
+path = "config/workload/gainestown/parsec/small/blackscholes.sqlite3"
 
 [platform.temperature]
 path = "config/004.stk"
 ambience = 318.15
 
 [traffic]
-path = "reference/traffic/cluster/google/submit.sqlite3"
+path = "config/traffic/cluster/google/submit.sqlite3"
 
 [workload]
-root = "reference/workload/gainestown/parsec"
+root = "config/workload/gainestown/parsec"
 patterns = [
   { name = "blackscholes-small",  path = "small/blackscholes.sqlite3" },
   { name = "bodytrack-small",     path = "small/bodytrack.sqlite3" },

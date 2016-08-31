@@ -1,6 +1,6 @@
 [submodule "reference/traffic"]
-	path = reference/traffic
+	path = config/traffic
 	url = https://github.com/learning-on-chip/traffic
 [submodule "reference/workload"]
-	path = reference/workload
+	path = config/workload
 	url = https://github.com/learning-on-chip/workload
