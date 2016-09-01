@@ -47,7 +47,7 @@ def select(components=None, sample_count=None, path=DATABASE_PATH):
     sample_count = min(sample_count, total_sample_count)
     print('Processing {}/{} samples for {}/{} components...'.format(
         sample_count, total_sample_count, component_count, total_component_count))
-    sql = 'SELECT rowid, component_id, power, temperature FROM profiles ' \
+    sql = 'SELECT sequence_id, component_id, power, temperature FROM profiles ' \
         'WHERE component_id in ({}) ORDER BY sequence_id ASC LIMIT {}'
     sql = sql.format(', '.join([str(id) for id in components]), sample_count * component_count)
     cursor.execute(sql)
@@ -55,7 +55,7 @@ def select(components=None, sample_count=None, path=DATABASE_PATH):
     mapping = np.zeros(total_component_count, dtype='int')
     mapping[components] = np.arange(0, component_count)
     for row in cursor:
-        i = (row[0] - 1) // total_component_count
+        i = row[0]
         j = mapping[row[1]]
         data[i, 2*j + 0] = row[2]
         data[i, 2*j + 1] = row[3]
