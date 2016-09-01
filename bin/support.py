@@ -6,7 +6,7 @@ DATABASE_PATH = 'output/database.sqlite3'
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))
 
-def partition(start_id, finish_id, min_length=5, path=DATABASE_PATH):
+def partition(start_id, finish_id, min_length=10, path=DATABASE_PATH):
     print('Reading markers from "{}"...'.format(path))
     sql = 'SELECT sequence_id, kind FROM markers ' \
         'WHERE component_id = 0 AND sequence_id >= {} AND sequence_id < {} ' \
