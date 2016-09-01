@@ -6,57 +6,57 @@ DATABASE_PATH = 'output/database.sqlite3'
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))
 
-def partition(data, left_margin=0, right_margin=0, min_length=10, epsilon=1e-6):
-    data = np.int_(data > (np.min(data) + epsilon))
-    sample_count = len(data)
-    activity = np.diff(data)
-    switch = np.reshape(list(np.nonzero(activity)), [-1])
-    if len(switch) == 0:
-        return np.zeros([0, 2], dtype='uint')
-    if activity[switch[0]] == -1:
-        switch = np.insert(switch, 0, -1)
-    if activity[switch[-1]] == 1:
-        switch = np.append(switch, sample_count - 1)
-    assert(len(switch) % 2 == 0)
-    total_count = len(switch) // 2
-    partition = np.zeros([total_count, 2], dtype='uint')
-    chosen_count = 0
-    for i in range(total_count):
-        j = switch[2 * i] + 1
-        k = switch[2*i + 1] + 1
-        assert(np.all(data[j:k] == 1))
-        partition[chosen_count, 0] = max(0, j - left_margin)
-        partition[chosen_count, 1] = min(sample_count, k + right_margin)
-        if partition[chosen_count, 1] - partition[chosen_count, 0] >= min_length:
-            chosen_count += 1
-    return partition[:chosen_count, :]
-
-def select(components=None, sample_count=None, path=DATABASE_PATH):
-    print('Reading "{}"...'.format(path))
+def partition(start_id, finish_id, min_length=5, path=DATABASE_PATH):
+    print('Reading markers from "{}"...'.format(path))
+    sql = 'SELECT sequence_id, kind FROM markers ' \
+        'WHERE component_id = 0 AND sequence_id >= {} AND sequence_id < {} ' \
+        'ORDER BY sequence_id ASC, kind DESC'
+    sql = sql.format(start_id, finish_id)
     connection = sqlite3.connect(path)
     cursor = connection.cursor()
-    sql = 'SELECT count(*), count(DISTINCT component_id) FROM profiles'
     cursor.execute(sql)
-    total_sample_count, total_component_count = cursor.fetchone()
-    assert(total_sample_count % total_component_count == 0)
-    total_sample_count //= total_component_count
-    if components is None: components = list(range(0, total_component_count))
-    components = list(filter(lambda c: c < total_component_count, components))
-    component_count = len(components)
+    partition = []
+    start, finish = [], []
+    for row in cursor:
+        if row[1] == 0:
+            start.append(row[0])
+        elif row[1] == 1:
+            finish.append(row[0])
+        else:
+            assert(False)
+        if len(start) == 0 or len(finish) == 0:
+            continue
+        if finish[0] < start[0]:
+            start.insert(0, start_id)
+        i = start[0]
+        del start[0]
+        j = finish[-1]
+        del finish[-1]
+        if j - i >= min_length:
+            partition.append([i, j])
+    connection.close()
+    assert(len(start) <= 1 and len(finish) <= 1)
+    return np.array(partition)
+
+def select(component_ids=None, sample_count=None, path=DATABASE_PATH):
+    print('Reading profiles from "{}"...'.format(path))
+    total_sample_count, total_component_count = _count(path)
+    component_ids, component_count, component_query, component_mapping = _prepare_components(
+        component_ids, total_component_count)
     if sample_count is None: sample_count = total_sample_count
     sample_count = min(sample_count, total_sample_count)
     print('Processing {}/{} samples for {}/{} components...'.format(
         sample_count, total_sample_count, component_count, total_component_count))
     sql = 'SELECT sequence_id, component_id, power, temperature FROM profiles ' \
         'WHERE component_id in ({}) ORDER BY sequence_id ASC LIMIT {}'
-    sql = sql.format(', '.join([str(id) for id in components]), sample_count * component_count)
+    sql = sql.format(component_query, sample_count * component_count)
+    connection = sqlite3.connect(path)
+    cursor = connection.cursor()
     cursor.execute(sql)
     data = np.zeros([sample_count, 2 * component_count])
-    mapping = np.zeros(total_component_count, dtype='int')
-    mapping[components] = np.arange(0, component_count)
     for row in cursor:
         i = row[0]
-        j = mapping[row[1]]
+        j = component_mapping[row[1]]
         data[i, 2*j + 0] = row[2]
         data[i, 2*j + 1] = row[3]
     connection.close()
@@ -69,3 +69,23 @@ def shift(data, amount, padding=0.0):
     elif amount < 0:
         data[amount:, :] = padding
     return data
+
+def _count(path):
+    connection = sqlite3.connect(path)
+    cursor = connection.cursor()
+    sql = 'SELECT count(*), count(DISTINCT component_id) FROM profiles'
+    cursor.execute(sql)
+    sample_count, component_count = cursor.fetchone()
+    assert(sample_count % component_count == 0)
+    sample_count //= component_count
+    connection.close()
+    return sample_count, component_count
+
+def _prepare_components(ids, total_count):
+    if ids is None: ids = list(range(0, total_count))
+    ids = list(filter(lambda id: id < total_count, ids))
+    count = len(ids)
+    query = ', '.join([str(id) for id in ids])
+    mapping = np.zeros(total_count, dtype='int')
+    mapping[ids] = np.arange(0, count)
+    return ids, count, query, mapping

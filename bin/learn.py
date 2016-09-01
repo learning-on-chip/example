@@ -91,7 +91,7 @@ class Learn:
         fetch = {'train': self.train, 'loss': self.model.loss, 'summary': self.summary}
         result = session.run(fetch, feed)
         loss = result['loss'].flatten()
-        assert(np.all([not math.isnan(l) for l in loss]))
+        assert(np.all([not math.isnan(loss) for loss in loss]))
         monitor.train((e, s, t), loss)
         self.logger.add_summary(result['summary'], t)
 
@@ -234,8 +234,8 @@ class Monitor:
 
 class Target:
     def __init__(self, config):
-        data = support.select(components=[config.component])
-        partition = support.partition(data[:, 0])
+        data = support.select(component_ids=[config.component_id])
+        partition = support.partition(0, data.shape[0])
         data = support.normalize(np.reshape(data[:, 0], [-1, 1]))
 
         self.data = data
@@ -258,7 +258,7 @@ class TestTarget:
 def main():
     config = Config()
     monitor = Monitor(config)
-    config.update({'component': 0})
+    config.update({'component_id': 0})
     target = Target(config)
     config.update({
         'dimension_count': target.dimension_count,
