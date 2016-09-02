@@ -35,7 +35,7 @@ version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
- "openblas-src 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "openblas-src 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -95,7 +95,7 @@ version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
- "openblas-src 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "openblas-src 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -134,7 +134,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "openblas-src"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -209,7 +209,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "streamer"
 version = "0.0.1"
-source = "git+https://github.com/learning-on-chip/streamer.git#043d11f55e5fbfa85bfbb5079697f43f69d40132"
+source = "git+https://github.com/learning-on-chip/streamer.git#6f390999af35195eeac83317a6d100058c927c75"
 dependencies = [
  "arguments 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "configuration 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -311,7 +311,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum matrix 0.21.5 (registry+https://github.com/rust-lang/crates.io-index)" = "fb708d692b7e9c545d471d9e76c1c4064844d145513cad8ad50805f251e33d9c"
 "checksum num-complex 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)" = "f0c78e054dd19c3fd03419ade63fa661e9c49bb890ce3beb4eee5b7baf93f92f"
 "checksum num-traits 0.1.35 (registry+https://github.com/rust-lang/crates.io-index)" = "8359ea48994f253fa958b5b90b013728b06f54872e5a58bce39540fcdd0f2527"
-"checksum openblas-src 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cffd68925ae30dd39f692adc3d78aebe5ac0e19bd3b4600b6343822efaebb49d"
+"checksum openblas-src 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "1b0b0193417c7e5e2e3abe1111602890840562a0c544012f301cd281a429a781"
 "checksum options 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4860781de16e821d563f8f61ed23bb2cf88085b41f13ab78a92da03ec135e090"
 "checksum pkg-config 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)" = "8cee804ecc7eaf201a4a207241472cc870e825206f6c031e3ee2a72fa425f2fa"
 "checksum probability 0.15.5 (registry+https://github.com/rust-lang/crates.io-index)" = "995372cae81617ede8282bd5798d0ad54cc24b3785f5afb07f77416088632b13"

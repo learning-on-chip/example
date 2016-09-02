@@ -91,8 +91,8 @@ fn display(system: &System, event: &Event) {
         &EventKind::Finish(ref job, _) => (job, "finish"),
     };
     info!(target: "Example",
-          "{:10.2} s | {:6} | # {:<5} ( {:15} | {:2} units | {:6.2} s ) {:2} queued",
-          event.time, kind, job.id, shorten(&job.name, 15), job.units, job.duration(),
+          "{:10.2} s | {:6} | # {:<5} ( {:15} | {:2} components | {:6.2} s ) {:2} queued",
+          event.time, kind, job.id, shorten(&job.name, 15), job.component_count, job.duration(),
           system.history().arrived - system.history().started);
 }
 
