@@ -9,10 +9,7 @@ pub struct Output {
     connection: Connection,
     markers: Statement<'static>,
     profiles: Statement<'static>,
-    processed: usize,
-    written: usize,
-    reduction: usize,
-    buffers: (Vec<f64>, Vec<f64>),
+    position: usize,
 }
 
 impl Output {
@@ -59,18 +56,11 @@ impl Output {
             ));
             unsafe { mem::transmute(statement) }
         };
-        let reduction = *config.get::<i64>("reduction").unwrap_or(&1);
-        if reduction <= 0 {
-            raise!("the reduction size should be greater than zero");
-        }
         Ok(Output {
             connection: connection,
             markers: markers,
             profiles: profiles,
-            processed: 0,
-            written: 0,
-            reduction: reduction as usize,
-            buffers: (vec![0.0; units], vec![0.0; units]),
+            position: 0,
         })
     }
 
@@ -83,7 +73,7 @@ impl Output {
     }
 
     fn write_markers(&mut self, event: &Event) -> Result<()> {
-        let &mut Output { markers: ref mut statement, written, .. } = self;
+        let &mut Output { markers: ref mut statement, position, .. } = self;
         let (kind, mapping) = match &event.kind {
             &EventKind::Start(_, ref mapping) => (0, mapping),
             &EventKind::Finish(_, ref mapping) => (1, mapping),
@@ -91,7 +81,7 @@ impl Output {
         };
         for &(_, j) in mapping {
             ok!(statement.reset());
-            ok!(statement.bind(1, written as i64));
+            ok!(statement.bind(1, position as i64));
             ok!(statement.bind(2, j as i64));
             ok!(statement.bind(3, kind as i64));
             if State::Done != ok!(statement.next()) {
@@ -102,38 +92,21 @@ impl Output {
     }
 
     fn write_profiles(&mut self, profiles: &(Profile, Profile)) -> Result<()> {
-        let &Profile { units, steps, data: ref new_power, .. } = &profiles.0;
-        let &Profile { data: ref new_temperature, .. } = &profiles.1;
-        let &mut Output {
-            profiles: ref mut statement, ref mut processed, ref mut written,
-            reduction, buffers: (ref mut power, ref mut temperature), ..
-        } = self;
+        let &Profile { units, steps, data: ref power, .. } = &profiles.0;
+        let &Profile { data: ref temperature, .. } = &profiles.1;
+        let &mut Output { profiles: ref mut statement, ref mut position, .. } = self;
         for i in 0..steps {
-            for j in 0..units {
-                power[j] += new_power[i * units + j];
-                temperature[j] += new_temperature[i * units + j];
-            }
-            *processed += 1;
-            if *processed % reduction > 0 {
-                continue;
-            }
             ok!(statement.reset());
-            let mut k = 0;
             for j in 0..units {
-                power[j] /= reduction as f64;
-                temperature[j] /= reduction as f64;
-                ok!(statement.bind(k + 1, *written as i64));
-                ok!(statement.bind(k + 2, j as i64));
-                ok!(statement.bind(k + 3, power[j]));
-                ok!(statement.bind(k + 4, temperature[j]));
-                power[j] = 0.0;
-                temperature[j] = 0.0;
-                k += 4;
+                ok!(statement.bind(4 * j + 1, *position as i64));
+                ok!(statement.bind(4 * j + 2, j as i64));
+                ok!(statement.bind(4 * j + 3, power[i * units + j]));
+                ok!(statement.bind(4 * j + 4, temperature[i * units + j]));
             }
             if State::Done != ok!(statement.next()) {
                 raise!("failed to write into the database");
             }
-            *written += 1;
+            *position += 1;
         }
         Ok(())
     }
