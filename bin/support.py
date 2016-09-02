@@ -6,12 +6,12 @@ DATABASE_PATH = 'output/database.sqlite3'
 def normalize(data):
     return (data - np.mean(data, axis=0)) / np.sqrt(np.var(data, axis=0))
 
-def partition(start_id, finish_id, min_length=10, path=DATABASE_PATH):
+def partition(start_time, finish_time, min_length=10, path=DATABASE_PATH):
     print('Reading markers from "{}"...'.format(path))
-    sql = 'SELECT sequence_id, kind FROM markers ' \
-        'WHERE component_id = 0 AND sequence_id >= {} AND sequence_id < {} ' \
-        'ORDER BY sequence_id ASC, kind DESC'
-    sql = sql.format(start_id, finish_id)
+    sql = 'SELECT time, kind FROM markers ' \
+          'WHERE component_id = 0 AND time >= {} AND time < {} ' \
+          'ORDER BY time ASC, kind DESC'
+    sql = sql.format(start_time, finish_time)
     connection = sqlite3.connect(path)
     cursor = connection.cursor()
     cursor.execute(sql)
@@ -27,7 +27,7 @@ def partition(start_id, finish_id, min_length=10, path=DATABASE_PATH):
         if len(start) == 0 or len(finish) == 0:
             continue
         if finish[0] < start[0]:
-            start.insert(0, start_id)
+            start.insert(0, start_time)
         i = start[0]
         del start[0]
         j = finish[-1]
@@ -47,8 +47,9 @@ def select(component_ids=None, sample_count=None, path=DATABASE_PATH):
     sample_count = min(sample_count, total_sample_count)
     print('Processing {}/{} samples for {}/{} components...'.format(
         sample_count, total_sample_count, component_count, total_component_count))
-    sql = 'SELECT sequence_id, component_id, power, temperature FROM profiles ' \
-        'WHERE component_id in ({}) ORDER BY sequence_id ASC LIMIT {}'
+    sql = 'SELECT time, component_id, power, temperature FROM profiles ' \
+          'WHERE component_id in ({}) ' \
+          'ORDER BY time ASC LIMIT {}'
     sql = sql.format(component_query, sample_count * component_count)
     connection = sqlite3.connect(path)
     cursor = connection.cursor()
