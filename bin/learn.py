@@ -3,6 +3,7 @@
 import os, sys
 sys.path.append(os.path.dirname(__file__))
 
+from database import Database
 import numpy as np
 import queue, math, socket, subprocess, support, threading
 import tensorflow as tf
@@ -234,18 +235,30 @@ class Monitor:
 
 class Target:
     def __init__(self, config):
-        data = support.select(component_ids=[config.component_id])
-        partition = support.partition(0, data.shape[0])
-        data = support.normalize(np.reshape(data[:, 0], [-1, 1]))
-
-        self.data = data
-        self.partition = partition
+        self.database = Database(config.component_id)
+        self.quantity = config.quantity
+        self.normalization = config.normalization
+        self.reduction = config.reduction
+        self.partition = self.database.partition()
         self.dimension_count = 1
-        self.sample_count = partition.shape[0]
+        self.sample_count = self.partition.shape[0]
+        self.cache = {}
 
     def compute(self, k):
+        if k in self.cache:
+            return self.cache[k]
+        print('Reading sample {}…'.format(k))
         i, j = self.partition[k]
-        return np.reshape(self.data[i:j, 0], [-1, 1])
+        sample = self.database.read(i, j, quantity=self.quantity)
+        sample = (sample - self.normalization.mean) / self.normalization.deviation
+        length = len(sample)
+        result = np.zeros([int(math.ceil(length / self.reduction)), 1])
+        for i in range(result.shape[0]):
+            j = i * self.reduction
+            l = j + self.reduction
+            result[i, 0] = np.sum(sample[j:min(l, length)]) / self.reduction
+        self.cache[k] = result
+        return self.cache[k]
 
 class TestTarget:
     def __init__(self, config):
@@ -258,7 +271,15 @@ class TestTarget:
 def main():
     config = Config()
     monitor = Monitor(config)
-    config.update({'component_id': 0})
+    config.update({
+        'component_id': 0,
+        'quantity': 'temperature',
+        'normalization': Config({
+            'mean': 320.72,
+            'deviation': 3.45,
+        }),
+        'reduction': 100,
+    })
     target = Target(config)
     config.update({
         'dimension_count': target.dimension_count,
