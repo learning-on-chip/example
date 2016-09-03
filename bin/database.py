@@ -25,11 +25,19 @@ class Database:
                 start = None
         return np.array(data)
 
-    def read(self, start, finish):
-        query = 'SELECT time, power, temperature FROM profiles WHERE time >= {} AND time < {}'
+    def read(self, start=None, finish=None):
+        condition = []
+        if start is not None:
+            condition.append('time >= {}'.format(start))
+        if finish is not None:
+            condition.append('time < {}'.format(finish))
+        condition = ' WHERE ' + ' AND '.join(condition) if len(condition) > 0 else ''
         cursor = self.connection.cursor()
-        cursor.execute(query.format(start, finish))
-        data = np.zeros([finish - start, 2])
+        cursor.execute('SELECT count(*) FROM profiles{}'.format(condition))
+        count = cursor.fetchone()[0]
+        cursor.execute('SELECT time, power, temperature FROM profiles{}'.format(condition))
+        data = np.zeros([count, 2])
+        start = start if start is not None else 0
         for row in cursor:
             i = row[0] - start
             data[i, 0] = row[1]

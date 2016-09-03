@@ -235,28 +235,25 @@ class Monitor:
 
 class Target:
     def __init__(self, config):
-        self.database = Database()
-        self.normalization = config.normalization
-        self.reduction = config.reduction
-        self.partition = self.database.partition()
+        database = Database()
+        partition = database.partition()
+        sample_count = partition.shape[0]
+        data = database.read()[:, 0]
+        samples, blob = {}, []
+        for k in range(sample_count):
+            i, j = partition[k]
+            samples[k] = data[i:j]
+            blob.append(samples[k])
+        blob = np.concatenate(blob)
+        mean, deviation = np.mean(blob), np.std(blob)
+        for k in range(sample_count):
+            samples[k] = np.reshape((samples[k] - mean) / deviation, [-1, 1])
         self.dimension_count = 1
-        self.sample_count = self.partition.shape[0]
-        self.cache = {}
+        self.sample_count = sample_count
+        self.samples = samples
 
     def compute(self, k):
-        if k in self.cache:
-            return self.cache[k]
-        i, j = self.partition[k]
-        sample = self.database.read(i, j)
-        sample = (sample - self.normalization.mean) / self.normalization.deviation
-        length = len(sample)
-        result = np.zeros([int(math.ceil(length / self.reduction)), 1])
-        for i in range(result.shape[0]):
-            j = i * self.reduction
-            l = j + self.reduction
-            result[i, 0] = np.sum(sample[j:min(l, length)]) / self.reduction
-        self.cache[k] = result
-        return self.cache[k]
+        return self.samples[k]
 
 class TestTarget:
     def __init__(self, config):
@@ -269,13 +266,6 @@ class TestTarget:
 def main():
     config = Config()
     monitor = Monitor(config)
-    config.update({
-        'normalization': Config({
-            'mean': 320.72,
-            'deviation': 3.45,
-        }),
-        'reduction': 100,
-    })
     target = Target(config)
     config.update({
         'dimension_count': target.dimension_count,

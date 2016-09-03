@@ -19,12 +19,12 @@ def main(window=int(1000)):
         pp.clf()
         start = random.randint(0, horizon - window)
         finish = start + window
-        partition = _find(partition, start, finish) - start
-        data = database.read(start, finish)
+        window_data = database.read(start, finish)
+        window_partition = _find(partition, start, finish) - start
         pp.subplot(2, 1, 1)
-        _plot(data[:, 0], partition)
+        _plot(window_data[:, 0], window_partition)
         pp.subplot(2, 1, 2)
-        _plot(data[:, 1], partition)
+        _plot(window_data[:, 1], window_partition)
         pp.pause(1e-3)
         if input('More? ') == 'no':
             break
