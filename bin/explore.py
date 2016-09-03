@@ -9,8 +9,8 @@ import matplotlib.pyplot as pp
 import numpy as np
 import random, support
 
-def main(component_id=0, window=int(1e5)):
-    database = Database(component_id=component_id)
+def main(window=int(1000)):
+    database = Database()
     partition = database.partition()
     horizon = partition[-1, 1]
     window = min(window, horizon)
@@ -19,8 +19,12 @@ def main(component_id=0, window=int(1e5)):
         pp.clf()
         start = random.randint(0, horizon - window)
         finish = start + window
-        print('Reading data from {} to {} ({})…'.format(start, finish, finish - start))
-        _plot(database.read(start, finish), _find(partition, start, finish) - start)
+        partition = _find(partition, start, finish) - start
+        data = database.read(start, finish)
+        pp.subplot(2, 1, 1)
+        _plot(data[:, 0], partition)
+        pp.subplot(2, 1, 2)
+        _plot(data[:, 1], partition)
         pp.pause(1e-3)
         if input('More? ') == 'no':
             break

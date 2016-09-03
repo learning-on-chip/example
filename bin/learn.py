@@ -235,8 +235,7 @@ class Monitor:
 
 class Target:
     def __init__(self, config):
-        self.database = Database(config.component_id)
-        self.quantity = config.quantity
+        self.database = Database()
         self.normalization = config.normalization
         self.reduction = config.reduction
         self.partition = self.database.partition()
@@ -247,9 +246,8 @@ class Target:
     def compute(self, k):
         if k in self.cache:
             return self.cache[k]
-        print('Reading sample {}…'.format(k))
         i, j = self.partition[k]
-        sample = self.database.read(i, j, quantity=self.quantity)
+        sample = self.database.read(i, j)
         sample = (sample - self.normalization.mean) / self.normalization.deviation
         length = len(sample)
         result = np.zeros([int(math.ceil(length / self.reduction)), 1])
@@ -272,8 +270,6 @@ def main():
     config = Config()
     monitor = Monitor(config)
     config.update({
-        'component_id': 0,
-        'quantity': 'temperature',
         'normalization': Config({
             'mean': 320.72,
             'deviation': 3.45,

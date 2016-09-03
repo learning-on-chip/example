@@ -1,19 +1,18 @@
 import numpy as np
-import sqlite3
+import os, sqlite3
 
-DATABASE_PATH = 'output/database.sqlite3'
+OUTPUT_PATH = 'output'
 
 class Database:
-    def __init__(self, component_id, path=DATABASE_PATH):
-        self.component_id = component_id
+    def __init__(self, path=None):
+        path = _find() if path is None else path
+        print('Reading the data in "{}"…'.format(path))
         self.connection = sqlite3.connect(path)
 
     def partition(self):
-        query = 'SELECT time, kind FROM markers ' \
-                'WHERE component_id = {} ' \
-                'ORDER BY time ASC, kind DESC'
+        query = 'SELECT time, kind FROM events ORDER BY time ASC, kind DESC'
         cursor = self.connection.cursor()
-        cursor.execute(query.format(self.component_id))
+        cursor.execute(query)
         data = []
         start = None
         for row in cursor:
@@ -26,12 +25,20 @@ class Database:
                 start = None
         return np.array(data)
 
-    def read(self, start, finish, quantity='power'):
-        query = 'SELECT time, {} FROM profiles ' \
-                'WHERE component_id = {} AND time >= {} AND time < {} '
+    def read(self, start, finish):
+        query = 'SELECT time, power, temperature FROM profiles WHERE time >= {} AND time < {}'
         cursor = self.connection.cursor()
-        cursor.execute(query.format(quantity, self.component_id, start, finish))
-        data = np.zeros([finish - start])
+        cursor.execute(query.format(start, finish))
+        data = np.zeros([finish - start, 2])
         for row in cursor:
-            data[row[0] - start] = row[1]
+            i = row[0] - start
+            data[i, 0] = row[1]
+            data[i, 1] = row[2]
         return data
+
+def _find():
+    for root, _, files in os.walk(OUTPUT_PATH):
+        for file in files:
+            if file.endswith('.sqlite3'):
+                return os.path.join(root, file)
+    raise('filed to find a database')

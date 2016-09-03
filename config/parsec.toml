@@ -2,9 +2,8 @@ seed = 0
 time_step = 1e-3
 
 [output]
-path = "output/database.sqlite3"
+path = "output/parsec-0-86400-100.sqlite3"
 element_id = 0
-quantity = "temperature"
 time_span = 86400.0
 batch_size = 100
 
