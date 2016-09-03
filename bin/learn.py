@@ -236,16 +236,16 @@ class Monitor:
 class Target:
     def __init__(self, config):
         database = Database()
+        data = database.read()[:, 0]
         partition = database.partition()
         sample_count = partition.shape[0]
-        data = database.read()[:, 0]
-        samples, blob = {}, []
+        samples, stack = {}, []
         for k in range(sample_count):
             i, j = partition[k]
             samples[k] = data[i:j]
-            blob.append(samples[k])
-        blob = np.concatenate(blob)
-        mean, deviation = np.mean(blob), np.std(blob)
+            stack.append(samples[k])
+        data = np.concatenate(stack)
+        mean, deviation = np.mean(data), np.std(data)
         for k in range(sample_count):
             samples[k] = np.reshape((samples[k] - mean) / deviation, [-1, 1])
         self.dimension_count = 1
