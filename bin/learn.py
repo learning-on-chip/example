@@ -234,9 +234,9 @@ class Target:
             samples[k] = data[i:j]
             stack.append(samples[k])
         data = np.concatenate(stack)
-        mean, deviation = np.mean(data), np.std(data)
+        offset, scale = np.mean(data), np.std(data)
         for k in range(sample_count):
-            samples[k] = np.reshape((samples[k] - mean) / deviation, [-1, 1])
+            samples[k] = np.reshape((samples[k] - offset) / scale, [-1, 1])
         self.dimension_count = 1
         self.sample_count = sample_count
         self.samples = samples
