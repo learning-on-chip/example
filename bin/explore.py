@@ -52,9 +52,8 @@ def _plot(data, partition):
     pp.gca().add_collection(cl.LineCollection(lines, colors='red', linewidths=2))
 
 if __name__ == '__main__':
-    database_path = Database.find()
     config = Config({
-        'database_path': database_path,
+        'database_path': Database.find(),
         'window_size': 1000,
     })
     main(config)

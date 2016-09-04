@@ -260,6 +260,7 @@ def main(config):
 
 if __name__ == '__main__':
     database_path = Database.find()
+    output_path = os.path.dirname(database_path)
     name = os.path.basename(database_path).replace('.sqlite3', '')
     config = Config({
         'dimension_count': 1,
@@ -274,8 +275,8 @@ if __name__ == '__main__':
         'learning_rate': 1e-3,
         'gradient_clip': 1.0,
         'epoch_count': 100,
-        'log_path': os.path.join(os.path.dirname(database_path), 'log'),
-        'save_path': os.path.join(os.path.dirname(database_path), name),
+        'log_path': os.path.join(output_path, 'log'),
+        'save_path': os.path.join(output_path, name),
         'bind_address': ('0.0.0.0', 4242),
         'work_schedule': [1000 - 10, 10],
     })
