@@ -15,7 +15,7 @@ class Database:
             for file in files:
                 if file.endswith('.sqlite3'):
                     return os.path.join(root, file)
-        raise('filed to find a database')
+        raise('failed to find a database')
 
     def __init__(self, config):
         self.connection = sqlite3.connect(config.database_path)
