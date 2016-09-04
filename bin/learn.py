@@ -209,7 +209,7 @@ class Monitor:
 
 class Saver:
     def __init__(self, config):
-        self.saver = tf.train.Saver()
+        self.backend = tf.train.Saver()
         self.path = config.save_path
 
     def save(self, session):
@@ -219,7 +219,7 @@ class Saver:
     def restore(self, session):
         if os.path.isfile(self.path):
             if input('Found a model in "{}". Restore? '.format(self.path)) != 'no':
-                self.saver.restore(session, self.path)
+                self.backend.restore(session, self.path)
                 print('Restored. Continue learning...')
 
 class Target:
