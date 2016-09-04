@@ -1,5 +1,0 @@
-*.ckpt
-*.meta
-*.sqlite3
-checkpoint
-log

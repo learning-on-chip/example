@@ -3,32 +3,10 @@
 import os, sys
 sys.path.append(os.path.dirname(__file__))
 
-from database import Database
+from support import Database, Config
 import numpy as np
 import queue, math, socket, subprocess, support, threading
 import tensorflow as tf
-
-class Config:
-    def __init__(self, options={}):
-        self.layer_count = 1
-        self.unit_count = 200
-        self.cell_clip = 1.0
-        self.forget_bias = 1.0
-        self.use_peepholes = True
-        self.network_initializer = tf.random_uniform_initializer(-0.01, 0.01)
-        self.regression_initializer = tf.random_normal_initializer(stddev=0.01)
-        self.learning_rate = 1e-3
-        self.gradient_clip = 1.0
-        self.epoch_count = 100
-        self.bind_address = ('0.0.0.0', 4242)
-        self.schedule = [1000 - 10, 10]
-        self.log_path = 'output/log'
-        self.save_path = 'output/model.ckpt'
-        self.update(options)
-
-    def update(self, options):
-        for key in options:
-            setattr(self, key, options[key])
 
 class Learn:
     def __init__(self, config):
@@ -46,7 +24,7 @@ class Learn:
             logger = tf.train.SummaryWriter(config.log_path, graph)
             summary = tf.merge_all_summaries()
             initialize = tf.initialize_variables(tf.all_variables(), name='initialize')
-            saver = tf.train.Saver()
+            saver = Saver(config)
 
         self.graph = graph
         self.model = model
@@ -62,21 +40,17 @@ class Learn:
 
     def run(self, target, monitor, config):
         print('Parameters: %d' % self.count_parameters())
-        print('Samples: %d' % config.sample_count)
+        print('Samples: %d' % target.sample_count)
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
-        if os.path.isfile(config.save_path):
-            if input('Found a model in "{}". Restore? '.format(config.save_path)) != 'no':
-                self.saver.restore(session, config.save_path)
-                print('Restored. Continue learning...')
+        self.saver.restore(session)
         for e in range(config.epoch_count):
             self._run_epoch(target, monitor, config, session, e)
-            path = self.saver.save(session, config.save_path)
-            print('Saved the model in "{}".'.format(path))
+            self.saver.save(session)
 
     def _run_epoch(self, target, monitor, config, session, e):
-        for s in range(config.sample_count):
-            t = e*config.sample_count + s
+        for s in range(target.sample_count):
+            t = e*target.sample_count + s
             if monitor.should_train(t):
                 self._run_train(target, monitor, config, session, e, s, t)
             if monitor.should_predict(t):
@@ -86,8 +60,8 @@ class Learn:
         sample = target.compute(s)
         feed = {
             self.model.start: self._zero_start(),
-            self.model.x: np.reshape(sample, [1, -1, config.dimension_count]),
-            self.model.y: np.reshape(support.shift(sample, -1), [1, -1, config.dimension_count]),
+            self.model.x: np.reshape(sample, [1, -1, target.dimension_count]),
+            self.model.y: np.reshape(support.shift(sample, -1), [1, -1, target.dimension_count]),
         }
         fetch = {'train': self.train, 'loss': self.model.loss, 'summary': self.summary}
         result = session.run(fetch, feed)
@@ -97,13 +71,13 @@ class Learn:
         self.logger.add_summary(result['summary'], t)
 
     def _run_predict(self, target, monitor, config, session, e, s, t):
-        sample = target.compute((s + 1) % config.sample_count)
+        sample = target.compute((s + 1) % target.sample_count)
         step_count = sample.shape[0]
         feed = {self.model.start: self._zero_start()}
         fetch = {'y_hat': self.model.y_hat, 'finish': self.model.finish}
         for i in range(step_count):
             feed[self.model.x] = np.reshape(sample[:(i + 1), :], [1, i + 1, -1])
-            y_hat = np.zeros([step_count, config.dimension_count])
+            y_hat = np.zeros([step_count, target.dimension_count])
             for j in range(step_count - i - 1):
                 result = session.run(fetch, feed)
                 feed[self.model.start] = result['finish']
@@ -171,7 +145,7 @@ class Model:
 class Monitor:
     def __init__(self, config):
         self.bind_address = config.bind_address
-        self.schedule = np.cumsum(config.schedule)
+        self.work_schedule = np.cumsum(config.work_schedule)
         self.channels = {}
         self.lock = threading.Lock()
         threading.Thread(target=self._predict_server, daemon=True).start()
@@ -181,7 +155,7 @@ class Monitor:
 
     def should_predict(self, t):
         return (len(self.channels) > 0 and
-            np.nonzero(self.schedule >= (t % self.schedule[-1]))[0][0] % 2 == 1)
+            np.nonzero(self.work_schedule >= (t % self.work_schedule[-1]))[0][0] % 2 == 1)
 
     def train(self, progress, loss):
         sys.stdout.write('%4d %10d %10d' % progress)
@@ -233,9 +207,24 @@ class Monitor:
             except Exception as e:
                 print('Encountered a problem ({}).'.format(e))
 
+class Saver:
+    def __init__(self, config):
+        self.saver = tf.train.Saver()
+        self.path = config.save_path
+
+    def save(self, session):
+        path = self.backend.save(session, self.path)
+        print('Saved the model in "{}".'.format(path))
+
+    def restore(self, session):
+        if os.path.isfile(self.path):
+            if input('Found a model in "{}". Restore? '.format(self.path)) != 'no':
+                self.saver.restore(session, self.path)
+                print('Restored. Continue learning...')
+
 class Target:
     def __init__(self, config):
-        database = Database()
+        database = Database(config)
         data = database.read()[:, 0]
         partition = database.partition()
         sample_count = partition.shape[0]
@@ -263,16 +252,31 @@ class TestTarget:
     def compute(self, k):
         return np.reshape(np.sin(4 * np.pi / 40 * np.arange(0, 40)), [-1, 1])
 
-def main():
-    config = Config()
-    monitor = Monitor(config)
-    target = Target(config)
-    config.update({
-        'dimension_count': target.dimension_count,
-        'sample_count': target.sample_count,
-    })
+def main(config):
     learn = Learn(config)
+    target = Target(config)
+    monitor = Monitor(config)
     learn.run(target, monitor, config)
 
 if __name__ == '__main__':
-    main()
+    name = 'parsec-0-86400-100'
+    output_path = 'output'
+    config = Config({
+        'dimension_count': 1,
+        'database_path': os.path.join(output_path, "{}.sqlite3".format(name)),
+        'layer_count': 1,
+        'unit_count': 200,
+        'cell_clip': 1.0,
+        'forget_bias': 1.0,
+        'use_peepholes': True,
+        'network_initializer': tf.random_uniform_initializer(-0.01, 0.01),
+        'regression_initializer': tf.random_normal_initializer(stddev=0.01),
+        'learning_rate': 1e-3,
+        'gradient_clip': 1.0,
+        'epoch_count': 100,
+        'log_path': os.path.join(output_path, 'log'),
+        'save_path': os.path.join(output_path, name),
+        'bind_address': ('0.0.0.0', 4242),
+        'work_schedule': [1000 - 10, 10],
+    })
+    main(config)

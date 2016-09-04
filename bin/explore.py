@@ -3,22 +3,22 @@
 import os, sys
 sys.path.append(os.path.dirname(__file__))
 
-from database import Database
+from support import Config, Database
 import matplotlib.collections as cl
 import matplotlib.pyplot as pp
 import numpy as np
 import random, support
 
-def main(window=int(1000)):
-    database = Database()
+def main(config):
+    database = Database(config)
+    sample_count = database.count()
     partition = database.partition()
-    horizon = partition[-1, 1]
-    window = min(window, horizon)
+    window_size = min(config.window_size, sample_count)
     pp.figure(figsize=(16, 4), dpi=80, facecolor='w', edgecolor='k')
     while True:
         pp.clf()
-        start = random.randint(0, horizon - window)
-        finish = start + window
+        start = random.randint(0, sample_count - window_size)
+        finish = start + window_size
         window_data = database.read(start, finish)
         window_partition = _find(partition, start, finish) - start
         pp.subplot(2, 1, 1)
@@ -52,4 +52,10 @@ def _plot(data, partition):
     pp.gca().add_collection(cl.LineCollection(lines, colors='red', linewidths=2))
 
 if __name__ == '__main__':
-    main()
+    name = 'parsec-0-86400-100'
+    output_path = 'output'
+    config = Config({
+        'database_path': os.path.join(output_path, "{}.sqlite3".format(name)),
+        'window_size': 1000,
+    })
+    main(config)
