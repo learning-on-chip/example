@@ -52,10 +52,9 @@ def _plot(data, partition):
     pp.gca().add_collection(cl.LineCollection(lines, colors='red', linewidths=2))
 
 if __name__ == '__main__':
-    name = 'parsec-0-86400-100'
-    output_path = 'output'
+    database_path = Database.find()
     config = Config({
-        'database_path': os.path.join(output_path, "{}.sqlite3".format(name)),
+        'database_path': database_path,
         'window_size': 1000,
     })
     main(config)

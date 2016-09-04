@@ -1,5 +1,5 @@
 import numpy as np
-import sqlite3
+import os, sqlite3
 
 class Config:
     def __init__(self, options={}):
@@ -10,6 +10,13 @@ class Config:
             setattr(self, key, options[key])
 
 class Database:
+    def find(path='output'):
+        for root, _, files in os.walk(path):
+            for file in files:
+                if file.endswith('.sqlite3'):
+                    return os.path.join(root, file)
+        raise('filed to find a database')
+
     def __init__(self, config):
         self.connection = sqlite3.connect(config.database_path)
 
