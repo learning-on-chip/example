@@ -22,8 +22,7 @@ class Database:
 
     def count(self, *arguments):
         cursor = self.connection.cursor()
-        condition = Database._condition(*arguments)
-        cursor.execute('SELECT count(*) FROM profiles{}'.format(condition))
+        cursor.execute('SELECT count(*) FROM profiles')
         return cursor.fetchone()[0]
 
     def partition(self):
@@ -45,8 +44,7 @@ class Database:
     def read(self, *arguments):
         count = self.count(*arguments)
         cursor = self.connection.cursor()
-        condition = Database._condition(*arguments)
-        cursor.execute('SELECT time, power, temperature FROM profiles{}'.format(condition))
+        cursor.execute('SELECT time, power, temperature FROM profiles')
         data = np.zeros([count, 2])
         start = None
         for row in cursor:
@@ -56,14 +54,6 @@ class Database:
             data[i, 0] = row[1]
             data[i, 1] = row[2]
         return data
-
-    def _condition(start=None, finish=None):
-        condition = []
-        if start is not None:
-            condition.append('time >= {}'.format(start))
-        if finish is not None:
-            condition.append('time < {}'.format(finish))
-        return ' WHERE ' + ' AND '.join(condition) if len(condition) > 0 else ''
 
 def shift(data, amount, padding=0.0):
     data = np.roll(data, amount, axis=0)
