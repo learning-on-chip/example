@@ -6,5 +6,3 @@ $(output): $(config) $(sources)
 	@rm -f $@
 	@mkdir -p `dirname $@`
 	@cargo run -- --verbose --config $<
-
-.PHONY: all
