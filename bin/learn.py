@@ -14,6 +14,8 @@ class Learn:
         with graph.as_default():
             model = Model(config)
             with tf.variable_scope('optimization'):
+                epoch = tf.Variable(0, name='epoch', trainable=False)
+                increment_epoch = epoch.assign_add(1)
                 parameters = tf.trainable_variables()
                 gradient = tf.gradients(model.loss, parameters)
                 gradient, _ = tf.clip_by_global_norm(gradient, config.gradient_clip)
@@ -28,6 +30,8 @@ class Learn:
 
         self.graph = graph
         self.model = model
+        self.epoch = epoch
+        self.increment_epoch = increment_epoch
         self.parameters = parameters
         self.train = train
         self.logger = logger
@@ -44,8 +48,11 @@ class Learn:
         session = tf.Session(graph=self.graph)
         session.run(self.initialize)
         self.saver.restore(session)
-        for e in range(config.epoch_count):
+        epoch = session.run(self.epoch)
+        epoch_count = config.epoch_count - epoch % config.epoch_count
+        for e in range(epoch, epoch + epoch_count):
             self._run_epoch(target, monitor, config, session, e)
+            assert(session.run(self.increment_epoch) == e + 1)
             self.saver.save(session)
 
     def _run_epoch(self, target, monitor, config, session, e):
