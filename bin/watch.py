@@ -19,6 +19,8 @@ def main(config):
     while True:
         row = [float(number) for number in client.readline().split(',')]
         sample_count = len(row) // 2
+        if sample_count <= 1:
+            continue
         x = np.arange(0, sample_count)
         y = np.reshape(np.array(row[0:sample_count]), [-1, config.dimension_count])
         y_hat = np.reshape(np.array(row[sample_count:]), [-1, config.dimension_count])
