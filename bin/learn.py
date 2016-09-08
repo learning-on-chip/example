@@ -283,7 +283,7 @@ if __name__ == '__main__':
         'gradient_clip': 1.0,
         'epoch_count': 100,
         'log_path': os.path.join(output_path, 'log'),
-        'save_path': os.path.join(output_path, name),
+        'save_path': os.path.join(output_path, '{}.model'.format(name)),
         'bind_address': ('0.0.0.0', 4242),
         'work_schedule': [1000 - 10, 10],
     })
