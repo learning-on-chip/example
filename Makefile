@@ -1,22 +1,24 @@
-config := config/parsec.toml
-database := $(shell \grep '^path' $(config) | \head -1 | \cut -d'"' -f2)
-database_sources := $(shell find src -name '*.rs')
-name := $(basename $(notdir $(database)))
-archive := $(name).tar.gz
-archive_sources := $(addprefix $(dir $(database)),$(name).model $(name).model.meta checkpoint log)
+problem := parsec
+config := config/$(problem).toml
+database := output/$(problem).sqlite3
+archive := $(problem).tar.gz
+artifacts := $(addprefix output/,$(problem).model $(problem).model.meta checkpoint log)
 
-all: database
+all:
 
 archive: $(archive)
 
-database: $(database)
+generate: $(database)
 
-$(archive): $(archive_sources)
-	tar -czf $@ $^
+clean:
+	@rm -rf $(artifacts)
 
-$(database): $(config) $(database_sources)
+$(archive): $(artifacts)
+	@tar -czf $@ $^
+
+$(database): $(config) $(shell find src -name '*.rs')
 	@rm -f $@
-	@mkdir -p `dirname $@`
+	@mkdir -p output
 	@cargo run -- --verbose --config $<
 
-.PHONY: all archive database
+.PHONY: all archive clean generate
