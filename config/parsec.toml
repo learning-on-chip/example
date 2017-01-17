@@ -15,10 +15,10 @@ path = "config/004.stk"
 ambience = 318.15
 
 [traffic]
-path = "config/traffic/cluster/google/submit.sqlite3"
+path = "reference/traffic/cluster/google/submit.sqlite3"
 
 [workload]
-root = "config/workload/gainestown/parsec"
+root = "reference/workload/gainestown/parsec"
 patterns = [
   { name = "blackscholes-small",  path = "small/blackscholes.sqlite3" },
   { name = "bodytrack-small",     path = "small/bodytrack.sqlite3" },
