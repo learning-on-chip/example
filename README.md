@@ -1,4 +1,4 @@
-# Example
+# Streamer Example
 
 The repository contains a usage example of [Streamer][streamer].
 
